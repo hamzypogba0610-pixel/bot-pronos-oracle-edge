@@ -1,13 +1,16 @@
 """
-calibration.py — Moteur d'apprentissage de la calibration.
-Enregistre les prédictions, les résultats réels, corrige les probas,
-et alimente le Meta-Brain (auto-évaluation contextuelle).
+calibration.py — Moteur d'apprentissage.
+Gère 3 niveaux d'apprentissage :
+1. Calibration (bins de probabilités)
+2. Meta-Brain (performance par contexte)
+3. Gradient (optimisation des poids)
 """
 
 import json
 from pathlib import Path
 
 import metabrain
+import gradient
 
 
 CALIBRATION_FILE = Path("calibration_data.json")
@@ -17,11 +20,7 @@ CALIBRATION_FILE = Path("calibration_data.json")
 
 def charger():
     if not CALIBRATION_FILE.exists():
-        return {
-            "bins": {},
-            "historique": [],
-            "stats": {},
-        }
+        return {"bins": {}, "historique": [], "stats": {}}
     try:
         with open(CALIBRATION_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -45,7 +44,6 @@ def _bin_key(proba, n_bins=20):
 
 
 def calibrer(proba_brute, market, data=None):
-    """Corrige une probabilité via les bins observés."""
     data = data or charger()
     if market not in data["bins"]:
         return proba_brute
@@ -63,10 +61,10 @@ def calibrer(proba_brute, market, data=None):
 # ---------- Enregistrement ----------
 
 def enregistrer_pari(market, p_calibree, cote, score, rob, verdict,
-                     regime="?", ligue="?"):
+                     regime="?", ligue="?", variables=None):
     """
-    Enregistre un pari recommandé (statut = 'en attente').
-    Inclut le régime et la ligue pour le Meta-Brain.
+    Enregistre un pari recommandé.
+    - variables : dict des 14 variables (pour GRADIENT-X)
     """
     data = charger()
     pari = {
@@ -79,6 +77,7 @@ def enregistrer_pari(market, p_calibree, cote, score, rob, verdict,
         "verdict": verdict,
         "regime": regime,
         "ligue": ligue,
+        "variables": variables or {},
         "resultat": None,
     }
     data["historique"].append(pari)
@@ -89,10 +88,11 @@ def enregistrer_pari(market, p_calibree, cote, score, rob, verdict,
 def enregistrer_resultat(pari_id, gagne):
     """
     Met à jour un pari avec son résultat réel.
-    Alimente :
-    - les bins de calibration
-    - les stats globales
-    - le Meta-Brain (par contexte)
+    Alimente 3 mécanismes :
+    - bins de calibration
+    - stats globales
+    - Meta-Brain (par contexte)
+    - Gradient (mise à jour des poids)
     """
     data = charger()
     pari = None
@@ -108,7 +108,7 @@ def enregistrer_resultat(pari_id, gagne):
     market = pari["market"]
     p_calibree = pari["p_calibree"]
 
-    # --- Mise à jour du bin ---
+    # --- 1. Mise à jour du bin ---
     if market not in data["bins"]:
         data["bins"][market] = {}
     bin_key = _bin_key(p_calibree)
@@ -118,7 +118,7 @@ def enregistrer_resultat(pari_id, gagne):
     if gagne:
         data["bins"][market][bin_key]["reussites"] += 1
 
-    # --- Mise à jour des stats globales ---
+    # --- 2. Stats globales ---
     if market not in data["stats"]:
         data["stats"][market] = {"total": 0, "gagnes": 0, "cote_moy": 0.0}
     s = data["stats"][market]
@@ -129,7 +129,7 @@ def enregistrer_resultat(pari_id, gagne):
 
     sauver(data)
 
-    # --- Alimentation du Meta-Brain ---
+    # --- 3. Meta-Brain ---
     try:
         metabrain.enregistrer_contexte(
             market=market,
@@ -139,6 +139,19 @@ def enregistrer_resultat(pari_id, gagne):
         )
     except Exception as e:
         print(f"Erreur metabrain : {e}")
+
+    # --- 4. Gradient (mise à jour des poids) ---
+    variables = pari.get("variables") or {}
+    if variables:
+        try:
+            gradient.mettre_a_jour(
+                market=market,
+                variables=variables,
+                proba_predite=p_calibree,
+                resultat_reel=1 if gagne else 0,
+            )
+        except Exception as e:
+            print(f"Erreur gradient : {e}")
 
     return True
 
