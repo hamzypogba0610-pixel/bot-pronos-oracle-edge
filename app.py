@@ -1,7 +1,7 @@
 """
-app.py — Interface Streamlit Oracle Edge v2.3.
+app.py — Interface Streamlit Oracle Edge v2.4.
 DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient.
-Détection auto de ligue + H2H avec gestion du lieu.
+Détection auto de ligue + H2H lieu + contrôle cotes.
 """
 
 import json
@@ -109,6 +109,12 @@ html, body, [class*="css"], .stApp {
     border-radius: 12px; padding: 12px 16px; margin: 10px 0;
     color: #FCA5A5; font-size: 13px;
 }
+.alert-cote {
+    background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(34,197,94,0.05));
+    border: 1px solid rgba(59,130,246,0.35);
+    border-radius: 12px; padding: 12px 16px; margin: 8px 0;
+    color: #93C5FD; font-size: 13px;
+}
 .regime-box {
     background: linear-gradient(135deg, rgba(245,158,11,0.10), rgba(34,197,94,0.05));
     border: 1px solid rgba(245,158,11,0.30);
@@ -145,14 +151,14 @@ def init_state():
                        "tirs": 0, "tirs_cadres": 0, "possession": 50} for _ in range(5)],
         "abs_home": 0.0, "abs_away": 0.0,
         "mot_home": 0.5, "mot_away": 0.5,
-        "cotes_1x2": {"H": 2.00, "D": 3.50, "A": 3.50},
-        "cotes_ou": {str(l): {"over": 1.90, "under": 1.90} for l in OU_LIGNES},
-        "cotes_btts": {"oui": 1.85, "non": 1.85},
-        "cotes_ah": {"-0.5": {"home": 1.90, "away": 1.90},
-                     "-1.5": {"home": 3.00, "away": 1.40},
-                     "-2.5": {"home": 6.00, "away": 1.12}},
-        "cotes_cs": [("2-1", 7.50), ("1-1", 6.50), ("2-0", 9.00),
-                     ("1-0", 8.50), ("1-2", 8.00)],
+        "cotes_1x2": {"H": 0.0, "D": 0.0, "A": 0.0},
+        "cotes_ou": {str(l): {"over": 0.0, "under": 0.0} for l in OU_LIGNES},
+        "cotes_btts": {"oui": 0.0, "non": 0.0},
+        "cotes_ah": {"-0.5": {"home": 0.0, "away": 0.0},
+                     "-1.5": {"home": 0.0, "away": 0.0},
+                     "-2.5": {"home": 0.0, "away": 0.0}},
+        "cotes_cs": [("2-1", 0.0), ("1-1", 0.0), ("2-0", 0.0),
+                     ("1-0", 0.0), ("1-2", 0.0)],
         "clv_actif": False,
         "cotes_1x2_ouv": {"H": 0.0, "D": 0.0, "A": 0.0},
         "cotes_ou_ouv": {str(l): {"over": 0.0, "under": 0.0} for l in OU_LIGNES},
@@ -176,7 +182,7 @@ def hero():
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
             <p class="hero-sub">DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient</p>
         </div>
-        <div class="hero-badge">v2.3</div>
+        <div class="hero-badge">v2.4</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -421,8 +427,8 @@ def page_5():
 
 def page_6():
     st.markdown('<div class="card"><p class="card-title">Cotes bookmaker</p>'
-                '<p class="card-sub">Cotes de fermeture obligatoires. '
-                'Cotes d\'ouverture optionnelles pour le CLV.</p></div>',
+                '<p class="card-sub">Saisis uniquement les cotes que tu as. '
+                'Laisse 0 pour les marchés non disponibles.</p></div>',
                 unsafe_allow_html=True)
 
     st.session_state.clv_actif = st.toggle(
@@ -443,7 +449,7 @@ def page_6():
                 )
             with c3:
                 st.session_state.cotes_1x2[key] = st.number_input(
-                    f"Ferm. {label}", min_value=1.01,
+                    f"Ferm. {label}", min_value=0.0,
                     value=float(st.session_state.cotes_1x2[key]),
                     step=0.01, key=f"c_fer_1x2_{key}",
                 )
@@ -451,19 +457,19 @@ def page_6():
         c1, c2, c3 = st.columns(3)
         with c1:
             st.session_state.cotes_1x2["H"] = st.number_input(
-                "🏠 Dom", min_value=1.01,
+                "🏠 Dom", min_value=0.0,
                 value=float(st.session_state.cotes_1x2["H"]),
                 step=0.01, key="c_H",
             )
         with c2:
             st.session_state.cotes_1x2["D"] = st.number_input(
-                "Nul", min_value=1.01,
+                "Nul", min_value=0.0,
                 value=float(st.session_state.cotes_1x2["D"]),
                 step=0.01, key="c_D",
             )
         with c3:
             st.session_state.cotes_1x2["A"] = st.number_input(
-                "✈️ Ext", min_value=1.01,
+                "✈️ Ext", min_value=0.0,
                 value=float(st.session_state.cotes_1x2["A"]),
                 step=0.01, key="c_A",
             )
@@ -481,7 +487,7 @@ def page_6():
                 )
             with c2:
                 st.session_state.cotes_ou[str(l)]["over"] = st.number_input(
-                    "Ferm. Over", min_value=1.01,
+                    "Ferm. Over", min_value=0.0,
                     value=float(st.session_state.cotes_ou[str(l)]["over"]),
                     step=0.01, key=f"c_fer_ou_o_{l}",
                 )
@@ -494,7 +500,7 @@ def page_6():
                 )
             with c2:
                 st.session_state.cotes_ou[str(l)]["under"] = st.number_input(
-                    "Ferm. Under", min_value=1.01,
+                    "Ferm. Under", min_value=0.0,
                     value=float(st.session_state.cotes_ou[str(l)]["under"]),
                     step=0.01, key=f"c_fer_ou_u_{l}",
                 )
@@ -503,13 +509,13 @@ def page_6():
             c1.markdown(f"Ligne {l}")
             with c2:
                 st.session_state.cotes_ou[str(l)]["over"] = st.number_input(
-                    "Over", min_value=1.01,
+                    "Over", min_value=0.0,
                     value=float(st.session_state.cotes_ou[str(l)]["over"]),
                     step=0.01, key=f"c_ou_o_{l}",
                 )
             with c3:
                 st.session_state.cotes_ou[str(l)]["under"] = st.number_input(
-                    "Under", min_value=1.01,
+                    "Under", min_value=0.0,
                     value=float(st.session_state.cotes_ou[str(l)]["under"]),
                     step=0.01, key=f"c_ou_u_{l}",
                 )
@@ -525,13 +531,13 @@ def page_6():
             )
         with c2:
             st.session_state.cotes_btts["oui"] = st.number_input(
-                "Ferm. Oui", min_value=1.01,
+                "Ferm. Oui", min_value=0.0,
                 value=float(st.session_state.cotes_btts["oui"]),
                 step=0.01, key="c_fer_btts",
             )
         with c3:
             st.session_state.cotes_btts["non"] = st.number_input(
-                "Ferm. Non", min_value=1.01,
+                "Ferm. Non", min_value=0.0,
                 value=float(st.session_state.cotes_btts["non"]),
                 step=0.01, key="c_fer_btts_non",
             )
@@ -539,13 +545,13 @@ def page_6():
         c1, c2 = st.columns(2)
         with c1:
             st.session_state.cotes_btts["oui"] = st.number_input(
-                "Oui", min_value=1.01,
+                "Oui", min_value=0.0,
                 value=float(st.session_state.cotes_btts["oui"]),
                 step=0.01, key="c_btts_oui",
             )
         with c2:
             st.session_state.cotes_btts["non"] = st.number_input(
-                "Non", min_value=1.01,
+                "Non", min_value=0.0,
                 value=float(st.session_state.cotes_btts["non"]),
                 step=0.01, key="c_btts_non",
             )
@@ -563,7 +569,7 @@ def page_6():
                 )
             with c2:
                 st.session_state.cotes_ah[ligne]["home"] = st.number_input(
-                    "Ferm. Home", min_value=1.01,
+                    "Ferm. Home", min_value=0.0,
                     value=float(st.session_state.cotes_ah[ligne]["home"]),
                     step=0.01, key=f"c_fer_ah_h_{ligne}",
                 )
@@ -576,7 +582,7 @@ def page_6():
                 )
             with c2:
                 st.session_state.cotes_ah[ligne]["away"] = st.number_input(
-                    "Ferm. Away", min_value=1.01,
+                    "Ferm. Away", min_value=0.0,
                     value=float(st.session_state.cotes_ah[ligne]["away"]),
                     step=0.01, key=f"c_fer_ah_a_{ligne}",
                 )
@@ -585,13 +591,13 @@ def page_6():
             c1.markdown(f"Ligne {ligne}")
             with c2:
                 st.session_state.cotes_ah[ligne]["home"] = st.number_input(
-                    "Home", min_value=1.01,
+                    "Home", min_value=0.0,
                     value=float(st.session_state.cotes_ah[ligne]["home"]),
                     step=0.01, key=f"c_ah_h_{ligne}",
                 )
             with c3:
                 st.session_state.cotes_ah[ligne]["away"] = st.number_input(
-                    "Away", min_value=1.01,
+                    "Away", min_value=0.0,
                     value=float(st.session_state.cotes_ah[ligne]["away"]),
                     step=0.01, key=f"c_ah_a_{ligne}",
                 )
@@ -606,7 +612,7 @@ def page_6():
             )
         with c2:
             new_cote = st.number_input(
-                "Cote", min_value=1.01,
+                "Cote", min_value=0.0,
                 value=float(st.session_state.cotes_cs[i][1]),
                 step=0.1, key=f"cs_c_{i}",
             )
@@ -693,6 +699,15 @@ def page_7():
     combines = resultat.get("combines")
     regime = resultat.get("regime", "?")
     ligue = resultat.get("ligue", "?")
+    warnings_cotes = resultat.get("warnings_cotes", [])
+
+    # --- Warnings cotes suspectes ---
+    if warnings_cotes:
+        st.markdown("### ⚠️ Cotes suspectes détectées")
+        for w in warnings_cotes:
+            st.markdown(f'<div class="alert-cote">'
+                        f'<b>{w["market"]}</b> — {w["message"]}'
+                        f'</div>', unsafe_allow_html=True)
 
     regime_labels = {
         "A": "🅰️ Match fermé", "B": "🅱️ Match offensif",
@@ -877,15 +892,15 @@ def page_7():
         "resultats": resultats, "meilleur": meilleur,
         "scores_exacts": scores_exacts, "combines": combines,
         "clv_actif": clv_actif,
+        "warnings_cotes": warnings_cotes,
     }
     st.download_button(
         "⬇️ Télécharger le rapport JSON",
         data=json.dumps(rapport, indent=2, ensure_ascii=False, default=str),
         file_name=f"oracle_edge_{home}_vs_{away}.json",
         mime="application/json",
-    )
-
-
+        )
+    
 def page_8():
     st.markdown('<div class="card"><p class="card-title">Suivi des paris</p>'
                 '<p class="card-sub">Marque chaque pari comme Gagné ou Perdu. '
