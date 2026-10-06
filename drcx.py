@@ -1,9 +1,7 @@
 """
 drcx.py — Cerveau 1 : DRC-X
-Probabilité brute + calibration via calibration.py.
+Probabilité brute + calibration.
 """
-
-import math
 
 from config import POIDS_MARCHE, VARIABLES
 from variables import sigmoide
@@ -24,7 +22,6 @@ def score_fondamental(variables, poids):
 
 
 def proba_brute(z, k=4.0):
-    """Transforme Z en probabilité via sigmoïde."""
     return sigmoide(z, k=k)
 
 
@@ -32,13 +29,6 @@ def proba_brute(z, k=4.0):
 
 def calculer_proba(market, variables, historique=None,
                    gap_niveau=0.5, calibrer_resultat=True):
-    """
-    Pipeline DRC-X :
-    1. Récupère les poids ajustés (via poids.py)
-    2. Calcule Z
-    3. Transforme en proba brute
-    4. Calibre avec les résultats passés (via calibration.py)
-    """
     poids, regime = calculer_poids_final(
         market, variables, historique=historique, gap_niveau=gap_niveau
     )
@@ -63,11 +53,10 @@ def calculer_proba(market, variables, historique=None,
 # ---------- Helpers pour l'enregistrement ----------
 
 def enregistrer_prediction(market, resultat_oracle, cote,
-                            regime="?", ligue="?"):
+                            regime="?", ligue="?", variables=None):
     """
     Enregistre un pari recommandé dans l'historique.
-    À appeler depuis app.py quand l'utilisateur accepte une analyse.
-    - regime et ligue alimentent le Meta-Brain.
+    - variables : dict des 14 variables (pour GRADIENT-X)
     """
     return calib.enregistrer_pari(
         market=market,
@@ -78,6 +67,7 @@ def enregistrer_prediction(market, resultat_oracle, cote,
         verdict=resultat_oracle["verdict"],
         regime=regime,
         ligue=ligue,
+        variables=variables,
     )
 
 
@@ -87,7 +77,7 @@ if __name__ == "__main__":
     exemple_variables = {
         "FORM": 0.72, "ATT": 0.68, "DEF": 0.61, "XG": 0.74, "HOME": 0.66,
         "GOALS": 0.58, "ABS": 0.85, "H2H": 0.54, "MOT": 0.60, "GK": 0.65,
-        "SET": 0.52, "STYLE": 0.63, "MARKET": 0.58,
+        "SET": 0.52, "STYLE": 0.63, "MARKET": 0.58, "ELO": 0.62,
     }
 
     for m in ["1", "X", "2", "O2.5", "U2.5", "BTTS"]:
