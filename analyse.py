@@ -1,41 +1,79 @@
 """
 analyse.py — Couche d'intégration.
 Prend les données du formulaire, exécute les 3 cerveaux,
-retourne un rapport complet sur les 18 marchés.
+retourne un rapport complet sur les 18 marchés + scores exacts.
 """
 
 from extraction import construire_donnees
 from variables import calculer_variables
 from mger import analyse_mger
 from oracle import analyse_oracle
+from score_matrix import (
+    calculer_lambdas,
+    construire_matrice,
+    proba_score,
+    top_scores,
+)
 
 
-# --- 18 marchés analysés ---
+# --- 18 marchés principaux ---
 MARCHES_V1 = [
-    # 1X2
     "1", "X", "2",
-    # Over / Under
     "O0.5", "U0.5",
     "O1.5", "U1.5",
     "O2.5", "U2.5",
     "O3.5", "U3.5",
-    # Handicaps asiatiques
     "AH-0.5", "AH+0.5",
     "AH-1.5", "AH+1.5",
     "AH-2.5", "AH+2.5",
-    # BTTS
     "BTTS",
 ]
 
 
+def analyser_scores_exacts(variables, cotes_cs):
+    """
+    Analyse les 5 scores exacts saisis par l'utilisateur.
+    Retourne une liste de dicts avec proba, cote, edge, EV.
+    """
+    lam_h, lam_a = calculer_lambdas(variables)
+    mat = construire_matrice(lam_h, lam_a)
+
+    resultats = []
+    for score, cote in cotes_cs:
+        if not score or not cote or cote <= 1.01:
+            continue
+        p = proba_score(mat, score)
+        if p is None:
+            continue
+        proba_implicite = 1 / cote
+        edge = p - proba_implicite
+        ev = p * cote - 1
+
+        resultats.append({
+            "score": score,
+            "proba": p,
+            "cote": cote,
+            "proba_implicite": proba_implicite,
+            "edge": edge,
+            "ev": ev,
+        })
+
+    return {
+        "lambdas": {"home": lam_h, "away": lam_a},
+        "scores_saisis": resultats,
+        "top_modele": top_scores(mat, 5),
+    }
+
+
 def analyser_match(home_form, away_form, h2h,
-                   absences, motivation, cote_home, cotes_map):
+                   absences, motivation, cote_home, cotes_map,
+                   cotes_cs=None):
     """
     Pipeline complet :
     1. Extraction des stats (extraction.py)
     2. Calcul des 13 variables (variables.py)
     3. Analyse 18 marchés (mger + oracle)
-    Retourne dict avec variables / qualite / resultats / meilleur.
+    4. Analyse scores exacts (score_matrix.py)
     """
     donnees = construire_donnees(
         form_data=home_form,
@@ -75,6 +113,14 @@ def analyser_match(home_form, away_form, h2h,
     valides = [r for r in resultats if r.get("accepte")]
     meilleur = max(valides, key=lambda x: x["master_score"]) if valides else None
 
+    # --- Scores exacts ---
+    scores_exacts = None
+    if cotes_cs:
+        try:
+            scores_exacts = analyser_scores_exacts(variables, cotes_cs)
+        except Exception as e:
+            scores_exacts = {"erreur": str(e)}
+
     return {
         "variables": variables,
         "qualite": {
@@ -84,4 +130,5 @@ def analyser_match(home_form, away_form, h2h,
         },
         "resultats": resultats,
         "meilleur": meilleur,
-                       }
+        "scores_exacts": scores_exacts,
+    }
