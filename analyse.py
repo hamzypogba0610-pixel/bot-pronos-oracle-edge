@@ -2,7 +2,7 @@
 analyse.py — Couche d'intégration.
 Prend les données du formulaire, exécute les 3 cerveaux,
 retourne un rapport complet :
-  - 18 marchés
+  - 18 marchés (avec CLV si cotes d'ouverture fournies)
   - scores exacts
   - combinés
 """
@@ -67,12 +67,12 @@ def analyser_scores_exacts(variables, cotes_cs):
 
 def analyser_match(home_form, away_form, h2h,
                    absences, motivation, cote_home, cotes_map,
-                   cotes_cs=None):
+                   cotes_cs=None, cotes_ouverture_map=None):
     """
     Pipeline complet :
     1. Extraction des stats (extraction.py)
     2. Calcul des 13 variables (variables.py)
-    3. Analyse 18 marchés (mger + oracle)
+    3. Analyse 18 marchés (mger + oracle) — avec CLV si cotes ouverture fournies
     4. Analyse scores exacts (score_matrix.py)
     5. Génération des combinés (combines.py)
     """
@@ -91,6 +91,8 @@ def analyser_match(home_form, away_form, h2h,
 
     variables = calculer_variables(donnees)
 
+    cotes_ouv = cotes_ouverture_map or {}
+
     resultats = []
     for market in MARCHES_V1:
         cote = cotes_map.get(market)
@@ -100,6 +102,7 @@ def analyser_match(home_form, away_form, h2h,
             mger_res = analyse_mger(market, variables, cote=cote)
             oracle_res = analyse_oracle(
                 variables, mger_res, cote,
+                cote_ouverture=cotes_ouv.get(market),
                 volume_donnees=volume,
                 fraicheur_jours=fraicheur,
                 completude=completude,
@@ -140,4 +143,4 @@ def analyser_match(home_form, away_form, h2h,
         "meilleur": meilleur,
         "scores_exacts": scores_exacts,
         "combines": combines,
-        }
+  }
