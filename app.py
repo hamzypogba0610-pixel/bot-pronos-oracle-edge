@@ -1,6 +1,7 @@
 """
-app.py — Interface Streamlit Oracle Edge v2.0.
+app.py — Interface Streamlit Oracle Edge v2.3.
 DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient.
+Détection auto de ligue via teams.py.
 """
 
 import json
@@ -14,6 +15,7 @@ import calibration as calib
 import metabrain
 import gradient
 import elo
+import teams
 import drcx
 
 
@@ -36,14 +38,12 @@ html, body, [class*="css"], .stApp {
 }
 #MainMenu, footer, header {visibility: hidden;}
 .block-container {padding-top: 1.5rem; padding-bottom: 3rem; max-width: 1280px;}
-
 .hero {
     display: flex; align-items: center; justify-content: space-between;
     background: linear-gradient(135deg, rgba(34,197,94,0.10), rgba(15,23,42,0.0));
     border: 1px solid rgba(34,197,94,0.25);
     border-radius: 16px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
+    padding: 20px 24px; margin-bottom: 20px;
 }
 .hero-title { font-size: 22px; font-weight: 700; color: #F8FAFC; margin: 0; }
 .hero-title span { color: #22C55E; }
@@ -54,8 +54,7 @@ html, body, [class*="css"], .stApp {
     color: #22C55E;
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
-    padding: 5px 10px; border-radius: 999px;
-    font-weight: 600;
+    padding: 5px 10px; border-radius: 999px; font-weight: 600;
 }
 .steps { display: flex; gap: 5px; margin-bottom: 20px; }
 .step { flex: 1; height: 4px; border-radius: 999px; background: rgba(148,163,184,0.15); }
@@ -64,9 +63,7 @@ html, body, [class*="css"], .stApp {
 .card {
     background: rgba(30,41,59,0.55);
     border: 1px solid rgba(148,163,184,0.12);
-    border-radius: 14px;
-    padding: 18px 20px;
-    margin-bottom: 16px;
+    border-radius: 14px; padding: 18px 20px; margin-bottom: 16px;
 }
 .card-title { font-size: 14px; font-weight: 600; color: #F8FAFC; margin: 0 0 4px 0; }
 .card-sub { font-size: 12px; color: #94A3B8; margin-bottom: 12px; }
@@ -104,25 +101,18 @@ html, body, [class*="css"], .stApp {
 .result-card {
     background: linear-gradient(135deg, rgba(34,197,94,0.08), rgba(245,158,11,0.05));
     border: 1px solid rgba(34,197,94,0.25);
-    border-radius: 14px;
-    padding: 16px 20px;
-    margin-bottom: 12px;
+    border-radius: 14px; padding: 16px 20px; margin-bottom: 12px;
 }
 .alert-trap {
     background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(245,158,11,0.08));
     border: 1px solid rgba(239,68,68,0.35);
-    border-radius: 12px;
-    padding: 12px 16px;
-    margin: 10px 0;
-    color: #FCA5A5;
-    font-size: 13px;
+    border-radius: 12px; padding: 12px 16px; margin: 10px 0;
+    color: #FCA5A5; font-size: 13px;
 }
 .regime-box {
     background: linear-gradient(135deg, rgba(245,158,11,0.10), rgba(34,197,94,0.05));
     border: 1px solid rgba(245,158,11,0.30);
-    border-radius: 12px;
-    padding: 14px 18px;
-    margin-bottom: 14px;
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 14px;
 }
 .verdict-green { color: #22C55E; font-weight: 700; }
 .verdict-yellow { color: #F59E0B; font-weight: 700; }
@@ -143,6 +133,8 @@ def init_state():
     defaults = {
         "page": 0,
         "league": "Premier League",
+        "league_auto": None,
+        "league_confiance": None,
         "match_date": date.today(),
         "home_team": "",
         "away_team": "",
@@ -184,7 +176,7 @@ def hero():
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
             <p class="hero-sub">DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient</p>
         </div>
-        <div class="hero-badge">v2.0</div>
+        <div class="hero-badge">v2.3</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -209,12 +201,8 @@ def stepper():
 
 
 LABELS_SUIVANT = {
-    0: "Suivant →",
-    1: "Suivant →",
-    2: "Suivant →",
-    3: "Suivant →",
-    4: "Suivant →",
-    5: "Analyser 🚀",
+    0: "Suivant →", 1: "Suivant →", 2: "Suivant →",
+    3: "Suivant →", 4: "Suivant →", 5: "Analyser 🚀",
     6: "Voir les résultats →",
 }
 
@@ -237,19 +225,10 @@ def nav():
 
 def page_1():
     st.markdown('<div class="card"><p class="card-title">Configuration du match</p>'
-                '<p class="card-sub">Championnat, date et équipes.</p></div>',
+                '<p class="card-sub">Le championnat se détecte automatiquement.</p></div>',
                 unsafe_allow_html=True)
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        st.session_state.league = st.selectbox(
-            "Championnat", list(LEAGUES.keys()),
-            index=list(LEAGUES.keys()).index(st.session_state.league),
-        )
-        st.caption(LEAGUES[st.session_state.league]["pays"])
-    with c2:
-        st.session_state.match_date = st.date_input(
-            "Date", value=st.session_state.match_date
-        )
+
+    # --- Équipes en premier ---
     c1, c2 = st.columns(2)
     with c1:
         st.session_state.home_team = st.text_input(
@@ -261,6 +240,58 @@ def page_1():
             "✈️ Équipe à l'extérieur", value=st.session_state.away_team,
             placeholder="Liverpool",
         )
+
+    # --- Auto-détection de la ligue ---
+    if st.session_state.home_team and st.session_state.away_team:
+        ligue_detectee, confiance = teams.detecter_ligue(
+            st.session_state.home_team, st.session_state.away_team
+        )
+
+        if ligue_detectee:
+            # Éviter d'écraser le choix manuel
+            if st.session_state.league_auto != ligue_detectee:
+                if ligue_detectee in LEAGUES:
+                    st.session_state.league = ligue_detectee
+                st.session_state.league_auto = ligue_detectee
+            st.session_state.league_confiance = confiance
+
+            # Badge de confiance
+            if confiance == "high":
+                st.success(f"🎯 Ligue détectée : **{ligue_detectee}** "
+                           f"(2 équipes reconnues) — Tu peux modifier si besoin.")
+            elif confiance == "medium":
+                st.info(f"🔍 Ligue probable : **{ligue_detectee}** "
+                        f"(1 équipe reconnue) — Vérifie si besoin.")
+            else:
+                st.warning(f"⚠️ Ligue ambiguë : les 2 équipes ne jouent pas "
+                           f"habituellement dans la même ligue. Choisis manuellement.")
+        else:
+            st.caption("🆕 Équipes non reconnues. Choisis la ligue manuellement.")
+            st.session_state.league_auto = None
+            st.session_state.league_confiance = None
+
+    st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+
+    # --- Ligue + Date ---
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        liste_ligues = list(LEAGUES.keys())
+        # Index safe
+        try:
+            idx = liste_ligues.index(st.session_state.league)
+        except ValueError:
+            idx = 0
+        st.session_state.league = st.selectbox(
+            "Championnat", liste_ligues, index=idx,
+        )
+        st.caption(LEAGUES[st.session_state.league]["pays"]
+                   + " · " + LEAGUES[st.session_state.league]["type"])
+    with c2:
+        st.session_state.match_date = st.date_input(
+            "Date", value=st.session_state.match_date
+        )
+
+    # --- Info ELO ---
     if st.session_state.home_team and st.session_state.away_team:
         try:
             r_h = elo.get_rating(st.session_state.home_team)
@@ -654,12 +685,9 @@ def page_7():
     ligue = resultat.get("ligue", "?")
 
     regime_labels = {
-        "A": "🅰️ Match fermé",
-        "B": "🅱️ Match offensif",
-        "C": "🅲 Favori dominant",
-        "D": "🅳 Match équilibré",
-        "E": "🅴 Forte incertitude",
-        "?": "❓ Indéterminé",
+        "A": "🅰️ Match fermé", "B": "🅱️ Match offensif",
+        "C": "🅲 Favori dominant", "D": "🅳 Match équilibré",
+        "E": "🅴 Forte incertitude", "?": "❓ Indéterminé",
     }
     st.markdown(f'<div class="regime-box">'
                 f'<b style="color:#F8FAFC;">🎭 Régime :</b> '
@@ -692,12 +720,7 @@ def page_7():
         cs_rows = []
         for s in scores_exacts["scores_saisis"]:
             edge = s["edge"]
-            if edge >= 0.03:
-                verdict = "🟢 Value"
-            elif edge >= 0:
-                verdict = "🟡 Neutre"
-            else:
-                verdict = "🔴 Négatif"
+            verdict = "🟢 Value" if edge >= 0.03 else ("🟡 Neutre" if edge >= 0 else "🔴 Négatif")
             cs_rows.append({
                 "Score": s["score"],
                 "P modèle": f"{s['proba']:.1%}",
@@ -711,10 +734,8 @@ def page_7():
                          use_container_width=True, hide_index=True)
 
         st.markdown("**🏅 Top 5 scores selon le modèle**")
-        top_rows = [{
-            "Score": s,
-            "Probabilité": f"{p:.1%}",
-        } for s, p in scores_exacts.get("top_modele", [])]
+        top_rows = [{"Score": s, "Probabilité": f"{p:.1%}"}
+                    for s, p in scores_exacts.get("top_modele", [])]
         if top_rows:
             st.dataframe(pd.DataFrame(top_rows),
                          use_container_width=True, hide_index=True)
@@ -840,18 +861,11 @@ def page_7():
 
     st.markdown("### 💾 Export")
     rapport = {
-        "match": {
-            "league": ligue,
-            "date": str(st.session_state.match_date),
-            "home": home, "away": away,
-        },
-        "regime": regime,
-        "qualite": qualite,
-        "variables": variables,
-        "resultats": resultats,
-        "meilleur": meilleur,
-        "scores_exacts": scores_exacts,
-        "combines": combines,
+        "match": {"league": ligue, "date": str(st.session_state.match_date),
+                  "home": home, "away": away},
+        "regime": regime, "qualite": qualite, "variables": variables,
+        "resultats": resultats, "meilleur": meilleur,
+        "scores_exacts": scores_exacts, "combines": combines,
         "clv_actif": clv_actif,
     }
     st.download_button(
@@ -859,7 +873,7 @@ def page_7():
         data=json.dumps(rapport, indent=2, ensure_ascii=False, default=str),
         file_name=f"oracle_edge_{home}_vs_{away}.json",
         mime="application/json",
-            )
+        )
 
 
 def page_8():
@@ -917,9 +931,7 @@ def page_8():
             if m == "_global":
                 continue
             rows.append({
-                "Marché": m,
-                "Total": s["total"],
-                "Gagnés": s["gagnes"],
+                "Marché": m, "Total": s["total"], "Gagnés": s["gagnes"],
                 "Taux": f"{s['taux_reussite']:.1%}",
                 "Cote moy.": f"{s['cote_moy']:.2f}",
             })
@@ -931,10 +943,8 @@ def page_8():
         recents = calib.paris_recents(10)
         if recents:
             hist_rows = [{
-                "ID": p["id"],
-                "Marché": p["market"],
-                "Régime": p.get("regime", "?"),
-                "Ligue": p.get("ligue", "?"),
+                "ID": p["id"], "Marché": p["market"],
+                "Régime": p.get("regime", "?"), "Ligue": p.get("ligue", "?"),
                 "Cote": f"{p['cote']:.2f}",
                 "Résultat": "✅" if p["resultat"] else "❌",
             } for p in reversed(recents)]
@@ -949,14 +959,10 @@ def page_8():
         import pandas as pd
         ctx_rows = []
         for c in contextes:
-            meta = metabrain.calculer_metascore(
-                c["market"], c["regime"], c["ligue"]
-            )
+            meta = metabrain.calculer_metascore(c["market"], c["regime"], c["ligue"])
             ctx_rows.append({
-                "Marché": c["market"],
-                "Régime": c["regime"],
-                "Ligue": c["ligue"],
-                "n": c["n"],
+                "Marché": c["market"], "Régime": c["regime"],
+                "Ligue": c["ligue"], "n": c["n"],
                 "Taux": f"{c['taux']:.0%}",
                 "MetaScore": f"{meta['score']:+.2f}",
                 "Verdict": meta["verdict"],
@@ -968,11 +974,8 @@ def page_8():
     stats_g = gradient.stats_gradient()
     if stats_g:
         import pandas as pd
-        g_rows = [{
-            "Marché": s["market"],
-            "Paris": s["n"],
-            "Statut": s["statut"],
-        } for s in stats_g]
+        g_rows = [{"Marché": s["market"], "Paris": s["n"],
+                   "Statut": s["statut"]} for s in stats_g]
         st.dataframe(pd.DataFrame(g_rows),
                      use_container_width=True, hide_index=True)
 
@@ -983,12 +986,10 @@ def page_8():
             ecarts = gradient.ecart_vs_config(marche_choisi)
             if ecarts:
                 import pandas as pd
-                e_rows = [{
-                    "Variable": e["variable"],
-                    "Initial": f"{e['initial']:+.2f}",
-                    "Appris": f"{e['appris']:+.2f}",
-                    "Δ": f"{e['delta']:+.2f}",
-                } for e in ecarts]
+                e_rows = [{"Variable": e["variable"],
+                           "Initial": f"{e['initial']:+.2f}",
+                           "Appris": f"{e['appris']:+.2f}",
+                           "Δ": f"{e['delta']:+.2f}"} for e in ecarts]
                 st.dataframe(pd.DataFrame(e_rows),
                              use_container_width=True, hide_index=True)
 
@@ -998,10 +999,8 @@ def page_8():
         st.caption("Aucune équipe dans le classement.")
     else:
         import pandas as pd
-        e_rows = [{
-            "Équipe": e["equipe"],
-            "Rating": f"{e['rating']:.0f}",
-        } for e in stats_e[:20]]
+        e_rows = [{"Équipe": e["equipe"], "Rating": f"{e['rating']:.0f}"}
+                  for e in stats_e[:20]]
         st.dataframe(pd.DataFrame(e_rows),
                      use_container_width=True, hide_index=True)
 
