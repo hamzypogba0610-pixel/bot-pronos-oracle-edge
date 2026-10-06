@@ -1,10 +1,7 @@
 """
 analyse.py — Couche d'intégration.
-Prend les données du formulaire, exécute les 3 cerveaux,
-retourne un rapport complet :
-  - 18 marchés (avec CLV + Meta-Brain + ELO)
-  - scores exacts
-  - combinés
+Pipeline complet : 18 marchés + scores exacts + combinés
++ CLV + Meta-Brain + Shin (edge optimal).
 """
 
 from extraction import construire_donnees
@@ -32,6 +29,40 @@ MARCHES_V1 = [
     "AH-2.5", "AH+2.5",
     "BTTS",
 ]
+
+
+# --- Groupes de cotes pour Shin ---
+GROUPES = {
+    "1":      ["1", "X", "2"],
+    "X":      ["1", "X", "2"],
+    "2":      ["1", "X", "2"],
+    "O0.5":   ["O0.5", "U0.5"],
+    "U0.5":   ["O0.5", "U0.5"],
+    "O1.5":   ["O1.5", "U1.5"],
+    "U1.5":   ["O1.5", "U1.5"],
+    "O2.5":   ["O2.5", "U2.5"],
+    "U2.5":   ["O2.5", "U2.5"],
+    "O3.5":   ["O3.5", "U3.5"],
+    "U3.5":   ["O3.5", "U3.5"],
+    "AH-0.5": ["AH-0.5", "AH+0.5"],
+    "AH+0.5": ["AH-0.5", "AH+0.5"],
+    "AH-1.5": ["AH-1.5", "AH+1.5"],
+    "AH+1.5": ["AH-1.5", "AH+1.5"],
+    "AH-2.5": ["AH-2.5", "AH+2.5"],
+    "AH+2.5": ["AH-2.5", "AH+2.5"],
+    "BTTS":   ["BTTS"],
+}
+
+
+def construire_groupes_cotes(market, cotes_map):
+    """Retourne le dict {key: cote} du groupe auquel appartient le marché."""
+    cles = GROUPES.get(market, [market])
+    groupe = {}
+    for k in cles:
+        c = cotes_map.get(k)
+        if c and c > 1.01:
+            groupe[k] = c
+    return groupe if len(groupe) >= 2 else None
 
 
 def analyser_scores_exacts(variables, cotes_cs):
@@ -70,7 +101,6 @@ def analyser_match(home_form, away_form, h2h,
                    ligue="?", home_team=None, away_team=None):
     """
     Pipeline complet.
-    - home_team / away_team : pour ELO (optionnel mais recommandé)
     """
     donnees = construire_donnees(
         form_data=home_form,
@@ -103,6 +133,7 @@ def analyser_match(home_form, away_form, h2h,
             continue
         try:
             mger_res = analyse_mger(market, variables, cote=cote)
+            groupe = construire_groupes_cotes(market, cotes_map)
             oracle_res = analyse_oracle(
                 variables, mger_res, cote,
                 cote_ouverture=cotes_ouv.get(market),
@@ -111,6 +142,7 @@ def analyser_match(home_form, away_form, h2h,
                 completude=completude,
                 regime=regime,
                 ligue=ligue,
+                cotes_groupe=groupe,
             )
             oracle_res["cote"] = cote
             resultats.append(oracle_res)
@@ -148,4 +180,4 @@ def analyser_match(home_form, away_form, h2h,
         "meilleur": meilleur,
         "scores_exacts": scores_exacts,
         "combines": combines,
-                     }
+}
