@@ -1,6 +1,6 @@
 """
 app.py — Interface Streamlit Oracle Edge.
-Formulaire 8 pages + analyse + suivi des résultats.
+Formulaire 8 pages + analyse 12 marchés + suivi des résultats.
 """
 
 import json
@@ -173,9 +173,9 @@ def hero():
     <div class="hero">
         <div>
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
-            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield — 5 championnats</p>
+            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield — 12 marchés</p>
         </div>
-        <div class="hero-badge">v1.1</div>
+        <div class="hero-badge">v1.2</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -199,7 +199,6 @@ def stepper():
     )
 
 
-# Label du bouton "Suivant" selon la page
 LABELS_SUIVANT = {
     0: "Suivant →",
     1: "Suivant →",
@@ -461,12 +460,19 @@ def page_7():
                 f'{st.session_state.league}</p></div>',
                 unsafe_allow_html=True)
 
+    # --- 12 marchés envoyés à l'analyse ---
     cotes_map = {
         "1": st.session_state.cotes_1x2["H"],
         "X": st.session_state.cotes_1x2["D"],
         "2": st.session_state.cotes_1x2["A"],
+        "O0.5": st.session_state.cotes_ou["0.5"]["over"],
+        "U0.5": st.session_state.cotes_ou["0.5"]["under"],
+        "O1.5": st.session_state.cotes_ou["1.5"]["over"],
+        "U1.5": st.session_state.cotes_ou["1.5"]["under"],
         "O2.5": st.session_state.cotes_ou["2.5"]["over"],
         "U2.5": st.session_state.cotes_ou["2.5"]["under"],
+        "O3.5": st.session_state.cotes_ou["3.5"]["over"],
+        "U3.5": st.session_state.cotes_ou["3.5"]["under"],
         "BTTS": st.session_state.cotes_btts["oui"],
     }
 
@@ -501,7 +507,7 @@ def page_7():
         with cols[i % 4]:
             st.metric(k, f"{v:.2f}")
 
-    st.markdown("### 🎯 Analyse multi-marchés")
+    st.markdown("### 🎯 Analyse multi-marchés (12 marchés)")
     import pandas as pd
     df = pd.DataFrame([{
         "Marché": r.get("market", "-"),
@@ -534,7 +540,6 @@ def page_7():
         </div>
         """, unsafe_allow_html=True)
 
-        # --- Bouton enregistrer ---
         c1, c2 = st.columns([1, 2])
         with c1:
             if st.button("💾 Enregistrer ce pari", type="primary",
@@ -555,7 +560,6 @@ def page_7():
     else:
         st.error("🔴 NO BET — Aucun marché ne passe les filtres.")
 
-    # --- Export JSON ---
     st.markdown("### 💾 Export")
     rapport = {
         "match": {
@@ -615,7 +619,6 @@ def page_8():
                     st.caption(f"ROB {p['rob']:.2f}")
                 st.markdown("---")
 
-    # --- Statistiques ---
     st.markdown("### 📊 Statistiques globales")
     stats = calib.get_stats()
 
@@ -642,7 +645,6 @@ def page_8():
             st.dataframe(pd.DataFrame(rows),
                          use_container_width=True, hide_index=True)
 
-        # Historique récent
         st.markdown("### 📜 Historique récent")
         recents = calib.paris_recents(10)
         if recents:
@@ -659,7 +661,6 @@ def page_8():
         st.caption("Aucun pari résolu pour l'instant. "
                    "Les stats apparaîtront après tes premiers résultats.")
 
-    # --- Reset ---
     with st.expander("⚠️ Zone dangereuse"):
         st.caption("Efface toute la calibration et l'historique.")
         if st.button("🗑️ Réinitialiser la calibration", type="secondary"):
