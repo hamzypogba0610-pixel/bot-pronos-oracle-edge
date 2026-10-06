@@ -9,10 +9,7 @@ from datetime import date
 import streamlit as st
 
 from config import LEAGUES
-from variables import calculer_variables
-from drcx import calculer_proba
-from mger import analyse_mger, matrice_dependance, classifier_dependance
-from oracle import analyse_oracle
+from analyse import analyser_match
 
 
 # ============================================================
@@ -24,6 +21,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
 
 # ============================================================
 # DESIGN SYSTEM
@@ -77,7 +75,7 @@ html, body, [class*="css"], .stApp {
 .card-sub { font-size: 12px; color: #94A3B8; margin-bottom: 12px; }
 
 .stSelectbox label, .stTextInput label, .stDateInput label,
-.stNumberInput label, .stTextArea label {
+.stNumberInput label, .stTextArea label, .stSlider label {
     font-size: 11px !important;
     font-weight: 500 !important;
     color: #94A3B8 !important;
@@ -146,7 +144,7 @@ def init_state():
                        "tirs": 0, "tirs_cadres": 0, "possession": 50} for _ in range(5)],
         "away_form": [{"date": "", "score": "", "xg": 0.0, "xga": 0.0,
                        "tirs": 0, "tirs_cadres": 0, "possession": 50} for _ in range(5)],
-        "abs_home": 0, "abs_away": 0,
+        "abs_home": 0.0, "abs_away": 0.0,
         "mot_home": 0.5, "mot_away": 0.5,
         "cotes_1x2": {"H": 2.00, "D": 3.50, "A": 3.50},
         "cotes_ou": {str(l): {"over": 1.90, "under": 1.90} for l in OU_LIGNES},
@@ -408,7 +406,7 @@ def page_6():
     st.markdown("**Handicaps asiatiques**")
     for ligne in ["-0.5", "-1.5", "-2.5"]:
         c1, c2, c3 = st.columns([1, 1, 1])
-        c1.markdown(f"Arsenal {ligne}")
+        c1.markdown(f"Ligne {ligne}")
         with c2:
             st.session_state.cotes_ah[ligne]["home"] = st.number_input(
                 "Home", min_value=1.01,
@@ -442,29 +440,6 @@ def page_6():
 # ============================================================
 # PAGE 7 — ANALYSE
 # ============================================================
-def extraire_stats_form(form):
-    """Retourne (buts_marques, buts_encaisses, xg_moy, xga_moy, tirs_cadres_moy)."""
-    buts_pour, buts_contre = [], []
-    xgs, xgas, tcs = [], [], []
-    for m in form:
-        s = m.get("score", "")
-        if "-" in s:
-            try:
-                a, b = s.split("-")
-                buts_pour.append(int(a))
-                buts_contre.append(int(b))
-            except ValueError:
-                pass
-        xgs.append(m.get("xg", 0.0))
-        xgas.append(m.get("xga", 0.0))
-        tcs.append(m.get("tirs_cadres", 0))
-
-    def moy(l):
-        return sum(l) / len(l) if l else 0.0
-
-    return moy(buts_pour), moy(buts_contre), moy(xgs), moy(xgas), moy(tcs)
-
-
 def page_7():
     home = st.session_state.home_team or "Domicile"
     away = st.session_state.away_team or "Extérieur"
@@ -473,48 +448,6 @@ def page_7():
                 f'<p class="card-sub">{home} vs {away} — '
                 f'{st.session_state.league}</p></div>',
                 unsafe_allow_html=True)
-
-    # --- Extraction des stats ---
-    bm_h, bc_h, xg_h, xga_h, tc_h = extraire_stats_form(st.session_state.home_form)
-    bm_a, bc_a, xg_a, xga_a, tc_a = extraire_stats_form(st.session_state.away_form)
-
-    # --- Construction du dict pour calculer_variables ---
-    donnees_home = {
-        "form_resultats": [3, 3, 1, 3, 3],  # à améliorer plus tard
-        "form_qualite": [0.5] * 5,
-        "buts": bm_h, "xg": xg_h, "tirs_cadres": tc_h,
-        "buts_encaisses": bc_h, "xga": xga_h,
-        "tirs_cadres_conc": tc_a or 4,
-        "xga_adversaire": xga_a,
-        "perf_dom": 0.6, "perf_ext": 0.5,
-        "variance_buts": 1.0,
-        "impacts_absences": [st.session_state.abs_home],
-        "h2h_resultats": [0.5] * 5,
-        "h2h_ages": [100, 200, 300, 400, 500],
-        "motivation": st.session_state.mot_home,
-        "arrets": 5, "buts_evites": 0, "erreurs_gk": 0,
-        "danger_off": 0.5, "solidite_def": 0.5,
-        "pressing": 0.5, "possession": 0.5, "compacite": 0.5, "rythme": 0.5,
-        "style_adv": {"pressing": 0.5, "possession": 0.5,
-                      "compacite": 0.5, "rythme": 0.5},
-        "proba_marche": 1 / st.session_state.cotes_1x2["H"],
-    }
-
-    try:
-        variables = calculer_variables(donnees_home)
-    except Exception as e:
-        st.error(f"Erreur calcul variables : {e}")
-        return
-
-    # --- Affichage des variables ---
-    st.markdown("### 🧮 Variables calculées")
-    cols = st.columns(4)
-    for i, (k, v) in enumerate(variables.items()):
-        with cols[i % 4]:
-            st.metric(k, f"{v:.2f}")
-
-    # --- Analyse par marché ---
-    st.markdown("### 🎯 Analyse multi-marchés")
 
     cotes_map = {
         "1": st.session_state.cotes_1x2["H"],
@@ -525,72 +458,90 @@ def page_7():
         "BTTS": st.session_state.cotes_btts["oui"],
     }
 
-    resultats = []
-    for market, cote in cotes_map.items():
-        try:
-            mger_res = analyse_mger(market, variables, cote=cote)
-            oracle_res = analyse_oracle(variables, mger_res, cote)
-            resultats.append(oracle_res)
-        except Exception as e:
-            st.warning(f"Marché {market} : {e}")
-
-    # --- Tableau résultats ---
-    if resultats:
-        import pandas as pd
-        df = pd.DataFrame([{
-            "Marché": r["market"],
-            "P_CAL": f"{r['p_calibree']:.1%}",
-            "ROB": f"{r['rob']:.2f}",
-            "EV": f"{r['ev']:+.1%}",
-            "Chaos": f"{r['chaos']:.2f}",
-            "Q": f"{r['quality']:.0f}",
-            "Score": f"{r['master_score']:.1f}",
-            "Verdict": r["verdict"],
-        } for r in resultats])
-        st.dataframe(df, use_container_width=True, hide_index=True)
-
-        # --- Meilleur pari ---
-        valides = [r for r in resultats if r["accepte"]]
-        if valides:
-            best = max(valides, key=lambda x: x["master_score"])
-            st.markdown("### 🏆 Meilleur pari")
-            st.markdown(f"""
-            <div class="result-card">
-                <p style="font-size:18px;font-weight:700;color:#F8FAFC;margin:0;">
-                    🎯 {best['market']} — Cote {cotes_map[best['market']]:.2f}
-                </p>
-                <p style="margin-top:8px;color:#94A3B8;font-size:13px;">
-                    P calibrée : <b style="color:#22C55E;">{best['p_calibree']:.1%}</b> ·
-                    ROB : <b style="color:#22C55E;">{best['rob']:.2f}</b> ·
-                    EV : <b style="color:#22C55E;">{best['ev']:+.1%}</b> ·
-                    ES : <b style="color:#22C55E;">{best.get('edge_stability', 0):.0%}</b>
-                </p>
-                <p style="margin-top:8px;">
-                    <span class="verdict-green">{best['verdict']}</span>
-                    — Score Master <b>{best['master_score']:.1f}/100</b>
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.error("🔴 NO BET — Aucun marché ne passe les filtres.")
-
-        # --- Export JSON ---
-        st.markdown("### 💾 Export")
-        rapport = {
-            "match": {
-                "league": st.session_state.league,
-                "date": str(st.session_state.match_date),
-                "home": home, "away": away,
-            },
-            "variables": variables,
-            "resultats": resultats,
-        }
-        st.download_button(
-            "⬇️ Télécharger le rapport JSON",
-            data=json.dumps(rapport, indent=2, ensure_ascii=False, default=str),
-            file_name=f"oracle_edge_{home}_vs_{away}.json",
-            mime="application/json",
+    try:
+        resultat = analyser_match(
+            home_form=st.session_state.home_form,
+            away_form=st.session_state.away_form,
+            h2h=st.session_state.h2h,
+            absences=st.session_state.abs_home,
+            motivation=st.session_state.mot_home,
+            cote_home=st.session_state.cotes_1x2["H"],
+            cotes_map=cotes_map,
         )
+    except Exception as e:
+        st.error(f"Erreur lors de l'analyse : {e}")
+        return
+
+    variables = resultat["variables"]
+    qualite = resultat["qualite"]
+    resultats = resultat["resultats"]
+    meilleur = resultat["meilleur"]
+
+    st.markdown("### 📊 Qualité des données")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Volume", f"{qualite['volume']:.0%}")
+    c2.metric("Fraîcheur", f"{1 - qualite['fraicheur']:.0%}")
+    c3.metric("Complétude", f"{qualite['completude']:.0%}")
+
+    st.markdown("### 🧮 Variables calculées (0-1, 0.5 = neutre)")
+    cols = st.columns(4)
+    for i, (k, v) in enumerate(variables.items()):
+        with cols[i % 4]:
+            st.metric(k, f"{v:.2f}")
+
+    st.markdown("### 🎯 Analyse multi-marchés")
+    import pandas as pd
+    df = pd.DataFrame([{
+        "Marché": r.get("market", "-"),
+        "P_CAL": f"{r.get('p_calibree', 0):.1%}" if "p_calibree" in r else "—",
+        "ROB": f"{r.get('rob', 0):.2f}" if "rob" in r else "—",
+        "EV": f"{r.get('ev', 0):+.1%}" if "ev" in r else "—",
+        "Chaos": f"{r.get('chaos', 0):.2f}" if "chaos" in r else "—",
+        "Score": f"{r.get('master_score', 0):.1f}" if "master_score" in r else "—",
+        "Verdict": r.get("verdict", "—"),
+    } for r in resultats])
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    if meilleur:
+        st.markdown("### 🏆 Meilleur pari")
+        st.markdown(f"""
+        <div class="result-card">
+            <p style="font-size:18px;font-weight:700;color:#F8FAFC;margin:0;">
+                🎯 {meilleur['market']} — Cote {meilleur['cote']:.2f}
+            </p>
+            <p style="margin-top:8px;color:#94A3B8;font-size:13px;">
+                P calibrée : <b style="color:#22C55E;">{meilleur['p_calibree']:.1%}</b> ·
+                ROB : <b style="color:#22C55E;">{meilleur['rob']:.2f}</b> ·
+                EV : <b style="color:#22C55E;">{meilleur['ev']:+.1%}</b> ·
+                Chaos : <b style="color:#F59E0B;">{meilleur['chaos']:.2f}</b>
+            </p>
+            <p style="margin-top:8px;">
+                <span class="verdict-green">{meilleur['verdict']}</span>
+                — Score Master <b>{meilleur['master_score']:.1f}/100</b>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.error("🔴 NO BET — Aucun marché ne passe les filtres.")
+
+    st.markdown("### 💾 Export")
+    rapport = {
+        "match": {
+            "league": st.session_state.league,
+            "date": str(st.session_state.match_date),
+            "home": home, "away": away,
+        },
+        "qualite": qualite,
+        "variables": variables,
+        "resultats": resultats,
+        "meilleur": meilleur,
+    }
+    st.download_button(
+        "⬇️ Télécharger le rapport JSON",
+        data=json.dumps(rapport, indent=2, ensure_ascii=False, default=str),
+        file_name=f"oracle_edge_{home}_vs_{away}.json",
+        mime="application/json",
+    )
 
 
 # ============================================================
