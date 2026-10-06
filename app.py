@@ -1,6 +1,6 @@
 """
 app.py — Interface Streamlit Oracle Edge.
-Formulaire 7 pages + analyse via DRC-X + MGE-R + Oracle Shield.
+Formulaire 8 pages + analyse + suivi des résultats.
 """
 
 import json
@@ -10,6 +10,8 @@ import streamlit as st
 
 from config import LEAGUES
 from analyse import analyser_match
+import calibration as calib
+import drcx
 
 
 # ============================================================
@@ -127,7 +129,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 # ============================================================
 PAGES = [
     "Sélection", "H2H", "Forme dom.", "Forme ext.",
-    "Contexte", "Cotes", "Analyse",
+    "Contexte", "Cotes", "Analyse", "Résultats",
 ]
 OU_LIGNES = [0.5, 1.5, 2.5, 3.5]
 
@@ -154,7 +156,6 @@ def init_state():
                      "-2.5": {"home": 6.00, "away": 1.12}},
         "cotes_cs": [("2-1", 7.50), ("1-1", 6.50), ("2-0", 9.00),
                      ("1-0", 8.50), ("1-2", 8.00)],
-        "analyse_done": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -174,7 +175,7 @@ def hero():
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
             <p class="hero-sub">DRC-X · MGE-R · Oracle Shield — 5 championnats</p>
         </div>
-        <div class="hero-badge">v1.0</div>
+        <div class="hero-badge">v1.1</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -198,6 +199,18 @@ def stepper():
     )
 
 
+# Label du bouton "Suivant" selon la page
+LABELS_SUIVANT = {
+    0: "Suivant →",
+    1: "Suivant →",
+    2: "Suivant →",
+    3: "Suivant →",
+    4: "Suivant →",
+    5: "Analyser 🚀",
+    6: "Voir les résultats →",
+}
+
+
 def nav():
     st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
@@ -207,15 +220,15 @@ def nav():
                 st.session_state.page -= 1
                 st.rerun()
     with c3:
-        if st.session_state.page < len(PAGES) - 1:
-            label = "Suivant →" if st.session_state.page < len(PAGES) - 2 else "Analyser 🚀"
-            if st.button(label, use_container_width=True, type="primary"):
+        if st.session_state.page in LABELS_SUIVANT:
+            if st.button(LABELS_SUIVANT[st.session_state.page],
+                         use_container_width=True, type="primary"):
                 st.session_state.page += 1
                 st.rerun()
 
 
 # ============================================================
-# PAGES
+# PAGES 1 à 6
 # ============================================================
 def page_1():
     st.markdown('<div class="card"><p class="card-title">Configuration du match</p>'
@@ -264,7 +277,6 @@ def page_2():
 
 
 def page_form(is_home):
-    """Page 3 (dom) ou 4 (ext) — même structure."""
     cible = "domicile" if is_home else "extérieur"
     equipe = st.session_state.home_team if is_home else st.session_state.away_team
     key = "home_form" if is_home else "away_form"
@@ -521,9 +533,29 @@ def page_7():
             </p>
         </div>
         """, unsafe_allow_html=True)
+
+        # --- Bouton enregistrer ---
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            if st.button("💾 Enregistrer ce pari", type="primary",
+                         use_container_width=True):
+                try:
+                    pari_id = drcx.enregistrer_prediction(
+                        market=meilleur["market"],
+                        resultat_oracle=meilleur,
+                        cote=meilleur["cote"],
+                    )
+                    st.success(f"✅ Pari #{pari_id} enregistré ! "
+                               f"Va sur la page **Résultats** pour le suivre.")
+                except Exception as e:
+                    st.error(f"Erreur enregistrement : {e}")
+        with c2:
+            st.caption("Enregistre ce pari pour suivre son résultat réel "
+                       "et améliorer la calibration du bot.")
     else:
         st.error("🔴 NO BET — Aucun marché ne passe les filtres.")
 
+    # --- Export JSON ---
     st.markdown("### 💾 Export")
     rapport = {
         "match": {
@@ -545,6 +577,98 @@ def page_7():
 
 
 # ============================================================
+# PAGE 8 — RÉSULTATS
+# ============================================================
+def page_8():
+    st.markdown('<div class="card"><p class="card-title">Suivi des paris</p>'
+                '<p class="card-sub">Marque chaque pari comme Gagné ou Perdu. '
+                'Le bot apprend automatiquement.</p></div>',
+                unsafe_allow_html=True)
+
+    pending = calib.paris_en_attente()
+
+    if not pending:
+        st.info("📭 Aucun pari en attente. Enregistre un pari depuis la page Analyse.")
+    else:
+        st.markdown(f"### ⏳ {len(pending)} pari(s) en attente")
+        for p in pending:
+            with st.container():
+                c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
+                with c1:
+                    st.markdown(
+                        f"**#{p['id']} — {p['market']}**  \n"
+                        f"Cote **{p['cote']:.2f}** · "
+                        f"P {p['p_calibree']:.1%} · "
+                        f"Score {p['score_attribue']:.1f}"
+                    )
+                with c2:
+                    if st.button("✅ Gagné", key=f"w_{p['id']}",
+                                 use_container_width=True):
+                        calib.enregistrer_resultat(p["id"], True)
+                        st.rerun()
+                with c3:
+                    if st.button("❌ Perdu", key=f"l_{p['id']}",
+                                 use_container_width=True):
+                        calib.enregistrer_resultat(p["id"], False)
+                        st.rerun()
+                with c4:
+                    st.caption(f"ROB {p['rob']:.2f}")
+                st.markdown("---")
+
+    # --- Statistiques ---
+    st.markdown("### 📊 Statistiques globales")
+    stats = calib.get_stats()
+
+    if stats.get("_global", {}).get("total", 0) > 0:
+        g = stats["_global"]
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Taux de réussite", f"{g['taux_reussite']:.1%}")
+        c2.metric("Paris résolus", f"{g['total']}")
+        c3.metric("Paris gagnés", f"{g['gagnes']}")
+
+        import pandas as pd
+        rows = []
+        for m, s in stats.items():
+            if m == "_global":
+                continue
+            rows.append({
+                "Marché": m,
+                "Total": s["total"],
+                "Gagnés": s["gagnes"],
+                "Taux": f"{s['taux_reussite']:.1%}",
+                "Cote moy.": f"{s['cote_moy']:.2f}",
+            })
+        if rows:
+            st.dataframe(pd.DataFrame(rows),
+                         use_container_width=True, hide_index=True)
+
+        # Historique récent
+        st.markdown("### 📜 Historique récent")
+        recents = calib.paris_recents(10)
+        if recents:
+            hist_rows = [{
+                "ID": p["id"],
+                "Marché": p["market"],
+                "Cote": f"{p['cote']:.2f}",
+                "P": f"{p['p_calibree']:.1%}",
+                "Résultat": "✅" if p["resultat"] else "❌",
+            } for p in reversed(recents)]
+            st.dataframe(pd.DataFrame(hist_rows),
+                         use_container_width=True, hide_index=True)
+    else:
+        st.caption("Aucun pari résolu pour l'instant. "
+                   "Les stats apparaîtront après tes premiers résultats.")
+
+    # --- Reset ---
+    with st.expander("⚠️ Zone dangereuse"):
+        st.caption("Efface toute la calibration et l'historique.")
+        if st.button("🗑️ Réinitialiser la calibration", type="secondary"):
+            calib.reinitialiser()
+            st.success("Calibration réinitialisée.")
+            st.rerun()
+
+
+# ============================================================
 # ROUTAGE
 # ============================================================
 hero()
@@ -558,5 +682,6 @@ elif p == 3: page_form(False)
 elif p == 4: page_5()
 elif p == 5: page_6()
 elif p == 6: page_7()
+elif p == 7: page_8()
 
 nav()
