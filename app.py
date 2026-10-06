@@ -1,7 +1,7 @@
 """
 app.py — Interface Streamlit Oracle Edge v2.3.
 DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient.
-Détection auto de ligue via teams.py.
+Détection auto de ligue + H2H avec gestion du lieu.
 """
 
 import json
@@ -138,7 +138,7 @@ def init_state():
         "match_date": date.today(),
         "home_team": "",
         "away_team": "",
-        "h2h": [{"date": "", "score": ""} for _ in range(5)],
+        "h2h": [{"date": "", "score": "", "lieu": "dom"} for _ in range(5)],
         "home_form": [{"date": "", "score": "", "xg": 0.0, "xga": 0.0,
                        "tirs": 0, "tirs_cadres": 0, "possession": 50} for _ in range(5)],
         "away_form": [{"date": "", "score": "", "xg": 0.0, "xga": 0.0,
@@ -228,7 +228,6 @@ def page_1():
                 '<p class="card-sub">Le championnat se détecte automatiquement.</p></div>',
                 unsafe_allow_html=True)
 
-    # --- Équipes en premier ---
     c1, c2 = st.columns(2)
     with c1:
         st.session_state.home_team = st.text_input(
@@ -241,21 +240,18 @@ def page_1():
             placeholder="Liverpool",
         )
 
-    # --- Auto-détection de la ligue ---
     if st.session_state.home_team and st.session_state.away_team:
         ligue_detectee, confiance = teams.detecter_ligue(
             st.session_state.home_team, st.session_state.away_team
         )
 
         if ligue_detectee:
-            # Éviter d'écraser le choix manuel
             if st.session_state.league_auto != ligue_detectee:
                 if ligue_detectee in LEAGUES:
                     st.session_state.league = ligue_detectee
                 st.session_state.league_auto = ligue_detectee
             st.session_state.league_confiance = confiance
 
-            # Badge de confiance
             if confiance == "high":
                 st.success(f"🎯 Ligue détectée : **{ligue_detectee}** "
                            f"(2 équipes reconnues) — Tu peux modifier si besoin.")
@@ -272,11 +268,9 @@ def page_1():
 
     st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
-    # --- Ligue + Date ---
     c1, c2 = st.columns([2, 1])
     with c1:
         liste_ligues = list(LEAGUES.keys())
-        # Index safe
         try:
             idx = liste_ligues.index(st.session_state.league)
         except ValueError:
@@ -291,7 +285,6 @@ def page_1():
             "Date", value=st.session_state.match_date
         )
 
-    # --- Info ELO ---
     if st.session_state.home_team and st.session_state.away_team:
         try:
             r_h = elo.get_rating(st.session_state.home_team)
@@ -307,10 +300,14 @@ def page_1():
 
 def page_2():
     st.markdown('<div class="card"><p class="card-title">5 derniers face-à-face</p>'
-                '<p class="card-sub">Format : date + score (ex: 2-1).</p></div>',
+                '<p class="card-sub">Score au format standard (gauche-droite). '
+                'Précise où jouait l\'équipe à domicile actuelle.</p></div>',
                 unsafe_allow_html=True)
+
+    dom_actuel = st.session_state.home_team or "l'équipe domicile"
+
     for i in range(5):
-        c1, c2 = st.columns([2, 1])
+        c1, c2, c3 = st.columns([2, 1, 1])
         with c1:
             st.session_state.h2h[i]["date"] = st.text_input(
                 f"Date #{i+1}", value=st.session_state.h2h[i]["date"],
@@ -321,6 +318,19 @@ def page_2():
                 f"Score #{i+1}", value=st.session_state.h2h[i]["score"],
                 key=f"h2h_score_{i}", placeholder="2-1",
             )
+        with c3:
+            lieu_actuel = st.session_state.h2h[i].get("lieu", "dom")
+            idx = 0 if lieu_actuel == "dom" else 1
+            choix = st.selectbox(
+                f"Lieu #{i+1}",
+                ["🏠 Dom", "✈️ Ext"],
+                index=idx,
+                key=f"h2h_lieu_{i}",
+            )
+            st.session_state.h2h[i]["lieu"] = "dom" if "Dom" in choix else "ext"
+
+    st.caption(f"🏠 **Dom** = {dom_actuel} jouait à domicile  ·  "
+               f"✈️ **Ext** = {dom_actuel} jouait à l'extérieur")
 
 
 def page_form(is_home):
@@ -873,7 +883,7 @@ def page_7():
         data=json.dumps(rapport, indent=2, ensure_ascii=False, default=str),
         file_name=f"oracle_edge_{home}_vs_{away}.json",
         mime="application/json",
-        )
+    )
 
 
 def page_8():
