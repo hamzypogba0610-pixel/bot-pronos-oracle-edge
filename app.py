@@ -17,9 +17,6 @@ import elo
 import drcx
 
 
-# ============================================================
-# CONFIG
-# ============================================================
 st.set_page_config(
     page_title="Oracle Edge",
     page_icon="⚽",
@@ -28,9 +25,6 @@ st.set_page_config(
 )
 
 
-# ============================================================
-# DESIGN SYSTEM
-# ============================================================
 CUSTOM_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
@@ -63,12 +57,10 @@ html, body, [class*="css"], .stApp {
     padding: 5px 10px; border-radius: 999px;
     font-weight: 600;
 }
-
 .steps { display: flex; gap: 5px; margin-bottom: 20px; }
 .step { flex: 1; height: 4px; border-radius: 999px; background: rgba(148,163,184,0.15); }
 .step.done { background: #22C55E; }
 .step.active { background: #F59E0B; box-shadow: 0 0 10px rgba(245,158,11,0.5); }
-
 .card {
     background: rgba(30,41,59,0.55);
     border: 1px solid rgba(148,163,184,0.12);
@@ -78,7 +70,6 @@ html, body, [class*="css"], .stApp {
 }
 .card-title { font-size: 14px; font-weight: 600; color: #F8FAFC; margin: 0 0 4px 0; }
 .card-sub { font-size: 12px; color: #94A3B8; margin-bottom: 12px; }
-
 .stSelectbox label, .stTextInput label, .stDateInput label,
 .stNumberInput label, .stTextArea label, .stSlider label {
     font-size: 11px !important;
@@ -96,7 +87,6 @@ html, body, [class*="css"], .stApp {
     font-family: 'JetBrains Mono', monospace !important;
     font-size: 14px !important;
 }
-
 .stButton > button {
     border-radius: 10px !important;
     font-weight: 600 !important;
@@ -111,7 +101,6 @@ html, body, [class*="css"], .stApp {
     border: none !important;
     color: #062410 !important;
 }
-
 .result-card {
     background: linear-gradient(135deg, rgba(34,197,94,0.08), rgba(245,158,11,0.05));
     border: 1px solid rgba(34,197,94,0.25);
@@ -143,9 +132,6 @@ html, body, [class*="css"], .stApp {
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 
-# ============================================================
-# ÉTAT SESSION
-# ============================================================
 PAGES = [
     "Sélection", "H2H", "Forme dom.", "Forme ext.",
     "Contexte", "Cotes", "Analyse", "Résultats",
@@ -191,9 +177,6 @@ def init_state():
 init_state()
 
 
-# ============================================================
-# HELPERS UI
-# ============================================================
 def hero():
     st.markdown("""
     <div class="hero">
@@ -252,9 +235,6 @@ def nav():
                 st.rerun()
 
 
-# ============================================================
-# PAGES 1 à 5
-# ============================================================
 def page_1():
     st.markdown('<div class="card"><p class="card-title">Configuration du match</p>'
                 '<p class="card-sub">Championnat, date et équipes.</p></div>',
@@ -281,7 +261,6 @@ def page_1():
             "✈️ Équipe à l'extérieur", value=st.session_state.away_team,
             placeholder="Liverpool",
         )
-    # --- Info ELO ---
     if st.session_state.home_team and st.session_state.away_team:
         try:
             r_h = elo.get_rating(st.session_state.home_team)
@@ -410,9 +389,6 @@ def page_6():
         value=st.session_state.clv_actif,
     )
 
-    # ============================================================
-    # 1X2
-    # ============================================================
     st.markdown("### **1X2**")
     if st.session_state.clv_actif:
         for label, key in [("🏠 Dom", "H"), ("Nul", "D"), ("✈️ Ext", "A")]:
@@ -451,9 +427,6 @@ def page_6():
                 step=0.01, key="c_A",
             )
 
-    # ============================================================
-    # OVER / UNDER
-    # ============================================================
     st.markdown("### **Over / Under**")
     for l in OU_LIGNES:
         st.markdown(f"**Ligne {l}**")
@@ -500,9 +473,6 @@ def page_6():
                     step=0.01, key=f"c_ou_u_{l}",
                 )
 
-    # ============================================================
-    # BTTS
-    # ============================================================
     st.markdown("### **BTTS**")
     if st.session_state.clv_actif:
         c1, c2, c3 = st.columns(3)
@@ -539,9 +509,6 @@ def page_6():
                 step=0.01, key="c_btts_non",
             )
 
-    # ============================================================
-    # HANDICAPS
-    # ============================================================
     st.markdown("### **Handicaps asiatiques**")
     for ligne in ["-0.5", "-1.5", "-2.5"]:
         st.markdown(f"**Ligne {ligne}**")
@@ -588,9 +555,6 @@ def page_6():
                     step=0.01, key=f"c_ah_a_{ligne}",
                 )
 
-    # ============================================================
-    # SCORES EXACTS
-    # ============================================================
     st.markdown("### **Top 5 scores exacts**")
     for i in range(5):
         c1, c2 = st.columns([1, 2])
@@ -608,9 +572,6 @@ def page_6():
         st.session_state.cotes_cs[i] = (new_score, new_cote)
 
 
-# ============================================================
-# PAGE 7 — ANALYSE
-# ============================================================
 def page_7():
     home = st.session_state.home_team or "Domicile"
     away = st.session_state.away_team or "Extérieur"
@@ -692,7 +653,6 @@ def page_7():
     regime = resultat.get("regime", "?")
     ligue = resultat.get("ligue", "?")
 
-    # --- Bandeau régime + ligue ---
     regime_labels = {
         "A": "🅰️ Match fermé",
         "B": "🅱️ Match offensif",
@@ -722,7 +682,6 @@ def page_7():
         with cols[i % 4]:
             st.metric(k, f"{v:.2f}")
 
-    # --- Scores exacts ---
     if scores_exacts and "scores_saisis" in scores_exacts:
         st.markdown("### 🎲 Scores exacts")
         c1, c2 = st.columns(2)
@@ -760,7 +719,6 @@ def page_7():
             st.dataframe(pd.DataFrame(top_rows),
                          use_container_width=True, hide_index=True)
 
-    # --- Analyse multi-marchés (avec CLV + Meta + Shin) ---
     st.markdown("### 🎯 Analyse multi-marchés (18 marchés)")
     import pandas as pd
 
@@ -776,10 +734,8 @@ def page_7():
         if clv_actif:
             clv_data = r.get("clv_data")
             row["CLV"] = f"{clv_data['clv']:+.1%}" if clv_data else "—"
-        # Edge Shin vs naïf
         if "edge_shin" in r:
             row["Edge Shin"] = f"{r['edge_shin']:+.1%}"
-        # Meta
         meta_data = r.get("meta_data", {})
         if meta_data:
             row["Meta"] = f"{meta_data.get('score', 0):+.2f} (n={meta_data.get('n', 0)})"
@@ -793,7 +749,6 @@ def page_7():
     st.dataframe(pd.DataFrame(rows),
                  use_container_width=True, hide_index=True)
 
-    # --- Alertes pièges ---
     pieges = [r for r in resultats if r.get("piege")]
     if pieges:
         st.markdown("### 🚨 Alertes pièges")
@@ -803,7 +758,6 @@ def page_7():
                         f'<b>{p["market"]}</b> — {raison}'
                         f'</div>', unsafe_allow_html=True)
 
-    # --- Combinés ---
     if combines and isinstance(combines, list) and combines:
         st.markdown("### 🔗 Meilleurs combinés (2 marchés)")
         com_rows = []
@@ -830,7 +784,6 @@ def page_7():
         st.dataframe(pd.DataFrame(com_rows),
                      use_container_width=True, hide_index=True)
 
-    # --- Meilleur pari ---
     if meilleur:
         st.markdown("### 🏆 Meilleur pari")
         extras = []
@@ -906,12 +859,9 @@ def page_7():
         data=json.dumps(rapport, indent=2, ensure_ascii=False, default=str),
         file_name=f"oracle_edge_{home}_vs_{away}.json",
         mime="application/json",
-    )
+            )
 
 
-# ============================================================
-# PAGE 8 — RÉSULTATS + META-BRAIN + GRADIENT + ELO
-# ============================================================
 def page_8():
     st.markdown('<div class="card"><p class="card-title">Suivi des paris</p>'
                 '<p class="card-sub">Marque chaque pari comme Gagné ou Perdu. '
@@ -951,9 +901,6 @@ def page_8():
                     st.caption(f"ROB {p['rob']:.2f}")
                 st.markdown("---")
 
-    # ============================================================
-    # Statistiques globales
-    # ============================================================
     st.markdown("### 📊 Statistiques globales")
     stats = calib.get_stats()
 
@@ -994,13 +941,10 @@ def page_8():
             st.dataframe(pd.DataFrame(hist_rows),
                          use_container_width=True, hide_index=True)
 
-    # ============================================================
-    # Meta-Brain
-    # ============================================================
     st.markdown("### 🧠 Meta-Brain — Performance par contexte")
     contextes = metabrain.stats_contexte()
     if not contextes:
-        st.caption("Aucun contexte enregistré. Enregistre et résous des paris.")
+        st.caption("Aucun contexte enregistré.")
     else:
         import pandas as pd
         ctx_rows = []
@@ -1020,11 +964,7 @@ def page_8():
         st.dataframe(pd.DataFrame(ctx_rows),
                      use_container_width=True, hide_index=True)
 
-    # ============================================================
-    # GRADIENT-X : état d'apprentissage des poids
-    # ============================================================
     st.markdown("### ⚙️ GRADIENT-X — Optimisation des poids")
-    st.caption("Chaque marché optimise ses poids automatiquement après 10 paris résolus.")
     stats_g = gradient.stats_gradient()
     if stats_g:
         import pandas as pd
@@ -1036,7 +976,6 @@ def page_8():
         st.dataframe(pd.DataFrame(g_rows),
                      use_container_width=True, hide_index=True)
 
-    # --- Écarts vs config (sur marchés actifs) ---
     actifs = [s["market"] for s in stats_g if s["actif"]]
     if actifs:
         with st.expander("🔍 Voir les poids appris vs initiaux"):
@@ -1053,14 +992,10 @@ def page_8():
                 st.dataframe(pd.DataFrame(e_rows),
                              use_container_width=True, hide_index=True)
 
-    # ============================================================
-    # ELO — Classement
-    # ============================================================
     st.markdown("### 🏅 ELO — Classement des équipes")
-    st.caption("Mis à jour à chaque pari résolu. Les équipes inconnues démarrent à 1500.")
     stats_e = elo.stats_elo()
     if not stats_e:
-        st.caption("Aucune équipe dans le classement pour l'instant.")
+        st.caption("Aucune équipe dans le classement.")
     else:
         import pandas as pd
         e_rows = [{
@@ -1070,9 +1005,6 @@ def page_8():
         st.dataframe(pd.DataFrame(e_rows),
                      use_container_width=True, hide_index=True)
 
-    # ============================================================
-    # Zone dangereuse
-    # ============================================================
     with st.expander("⚠️ Zone dangereuse"):
         st.caption("Efface les données d'apprentissage.")
         c1, c2, c3 = st.columns(3)
@@ -1088,7 +1020,7 @@ def page_8():
                 st.rerun()
         with c3:
             if st.button("🗑️ Reset Gradient"):
-                                gradient.reinitialiser()
+                gradient.reinitialiser()
                 st.success("Gradient réinitialisé.")
                 st.rerun()
         if st.button("🗑️ Reset ELO"):
@@ -1097,9 +1029,6 @@ def page_8():
             st.rerun()
 
 
-# ============================================================
-# ROUTAGE
-# ============================================================
 hero()
 stepper()
 
