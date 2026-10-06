@@ -1,9 +1,14 @@
 """
 poids.py — Gestion des poids W(i,m) par marché + régimes + anti-redondance.
+
+Source des poids :
+- Au démarrage : poids initiaux de config.POIDS_MARCHE
+- Après 10 paris par marché : poids optimisés par gradient.py (GRADIENT-X)
 """
 
 import math
 from config import POIDS_MARCHE, REGIMES, VARIABLES
+import gradient
 
 
 # ---------- Détection du régime ----------
@@ -13,16 +18,13 @@ def detecter_regime(variables, gap_niveau=0.5):
     Classifie le match dans un des 5 régimes A/B/C/D/E.
     Priorité stricte : E > C > B > A > D.
     """
-    xg_total = variables["XG"] * 2  # approximation cumulée
-    def_total = variables["DEF"] * 2
+    xg_total = variables.get("XG", 0.5) * 2
 
-    # Chaos précoce : dispersion des 13 variables
     vals = list(variables.values())
     moy = sum(vals) / len(vals)
     variance = sum((v - moy) ** 2 for v in vals) / len(vals)
     chaos_early = math.sqrt(variance)
 
-    # GAP : écart de niveau (à affiner plus tard avec classement réel)
     gap = gap_niveau
 
     if chaos_early > 0.50:
@@ -39,7 +41,6 @@ def detecter_regime(variables, gap_niveau=0.5):
 # ---------- Application du régime ----------
 
 def appliquer_regime(poids, regime):
-    """Multiplie chaque poids par son multiplicateur de régime."""
     multiplicateurs = REGIMES.get(regime, {})
     return {
         var: poids.get(var, 0) * multiplicateurs.get(var, 1.0)
@@ -50,22 +51,15 @@ def appliquer_regime(poids, regime):
 # ---------- Anti-redondance ----------
 
 def matrice_correlation(historique_variables):
-    """
-    Calcule la corrélation entre chaque paire de variables
-    sur un historique de matchs.
-    historique_variables : liste de dicts {var: valeur}
-    """
     n = len(historique_variables)
     if n < 2:
         return {v1: {v2: 0.0 for v2 in VARIABLES} for v1 in VARIABLES}
 
     moyennes = {v: sum(h[v] for h in historique_variables) / n for v in VARIABLES}
-
     ecarts = {
         v: [h[v] - moyennes[v] for h in historique_variables]
         for v in VARIABLES
     }
-
     ecarts_types = {
         v: math.sqrt(sum(e ** 2 for e in ecarts[v]) / n)
         for v in VARIABLES
@@ -86,10 +80,6 @@ def matrice_correlation(historique_variables):
 
 
 def reduire_redundance(poids, correlation, seuil=0.70):
-    """
-    Réduit le poids des variables fortement corrélées.
-    Si |C_ij| > seuil, on divise les deux poids par (1 + |C_ij|).
-    """
     poids_ajuste = dict(poids)
     deja_traite = set()
 
@@ -109,7 +99,6 @@ def reduire_redundance(poids, correlation, seuil=0.70):
 # ---------- Renormalisation ----------
 
 def renormaliser(poids):
-    """Ramène la somme des |poids| à 100."""
     total = sum(abs(v) for v in poids.values())
     if total == 0:
         return poids
@@ -121,7 +110,7 @@ def renormaliser(poids):
 def calculer_poids_final(market, variables, historique=None, gap_niveau=0.5):
     """
     Pipeline complet :
-    1. Poids de base du marché
+    1. Récupère les poids (optimisés par gradient si dispo, sinon config)
     2. Détection du régime
     3. Application des multiplicateurs
     4. Anti-redondance (si historique dispo)
@@ -130,7 +119,16 @@ def calculer_poids_final(market, variables, historique=None, gap_niveau=0.5):
     if market not in POIDS_MARCHE:
         raise ValueError(f"Marché inconnu : {market}")
 
-    poids = dict(POIDS_MARCHE[market])
+    # --- Source des poids : gradient (si appris) sinon config ---
+    try:
+        poids = dict(gradient.get_poids(market))
+    except Exception:
+        poids = dict(POIDS_MARCHE[market])
+
+    # Si gradient retourne vide → fallback config
+    if not poids:
+        poids = dict(POIDS_MARCHE[market])
+
     regime = detecter_regime(variables, gap_niveau)
     poids = appliquer_regime(poids, regime)
 
