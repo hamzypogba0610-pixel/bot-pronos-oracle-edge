@@ -1,7 +1,7 @@
 """
 analyse.py — Couche d'intégration.
 Prend les données du formulaire, exécute les 3 cerveaux,
-retourne un rapport complet.
+retourne un rapport complet sur les 12 marchés.
 """
 
 from extraction import construire_donnees
@@ -10,7 +10,15 @@ from mger import analyse_mger
 from oracle import analyse_oracle
 
 
-MARCHES_V1 = ["1", "X", "2", "O2.5", "U2.5", "BTTS"]
+# --- 12 marchés analysés ---
+MARCHES_V1 = [
+    "1", "X", "2",
+    "O0.5", "U0.5",
+    "O1.5", "U1.5",
+    "O2.5", "U2.5",
+    "O3.5", "U3.5",
+    "BTTS",
+]
 
 
 def analyser_match(home_form, away_form, h2h,
@@ -19,7 +27,7 @@ def analyser_match(home_form, away_form, h2h,
     Pipeline complet :
     1. Extraction des stats (extraction.py)
     2. Calcul des 13 variables (variables.py)
-    3. Analyse multi-marchés (mger + oracle)
+    3. Analyse 12 marchés (mger + oracle)
     Retourne dict avec variables / qualite / resultats / meilleur.
     """
     donnees = construire_donnees(
@@ -69,4 +77,4 @@ def analyser_match(home_form, away_form, h2h,
         },
         "resultats": resultats,
         "meilleur": meilleur,
-                     }
+      }
