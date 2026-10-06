@@ -1,6 +1,6 @@
 """
-app.py — Interface Streamlit Oracle Edge.
-8 pages + 18 marchés + scores + combinés + CLV + Meta-Brain.
+app.py — Interface Streamlit Oracle Edge v2.0.
+DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient.
 """
 
 import json
@@ -12,6 +12,8 @@ from config import LEAGUES
 from analyse import analyser_match
 import calibration as calib
 import metabrain
+import gradient
+import elo
 import drcx
 
 
@@ -197,9 +199,9 @@ def hero():
     <div class="hero">
         <div>
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
-            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain</p>
+            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient</p>
         </div>
-        <div class="hero-badge">v1.7</div>
+        <div class="hero-badge">v2.0</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -279,6 +281,18 @@ def page_1():
             "✈️ Équipe à l'extérieur", value=st.session_state.away_team,
             placeholder="Liverpool",
         )
+    # --- Info ELO ---
+    if st.session_state.home_team and st.session_state.away_team:
+        try:
+            r_h = elo.get_rating(st.session_state.home_team)
+            r_a = elo.get_rating(st.session_state.away_team)
+            ecart = elo.ecart_elo(st.session_state.home_team,
+                                   st.session_state.away_team)
+            st.info(f"🏅 **ELO** · {st.session_state.home_team} : {r_h:.0f} "
+                    f"| {st.session_state.away_team} : {r_a:.0f} "
+                    f"| Écart (avec avantage dom) : **{ecart:+.0f}**")
+        except Exception:
+            pass
 
 
 def page_2():
@@ -395,9 +409,6 @@ def page_6():
         "🔓 Activer le calcul du CLV (saisir les cotes d'ouverture)",
         value=st.session_state.clv_actif,
     )
-    if st.session_state.clv_actif:
-        st.caption("📘 Le CLV mesure le mouvement du marché entre l'ouverture "
-                   "et la fermeture. Un CLV positif est un signal fort.")
 
     # ============================================================
     # 1X2
@@ -412,7 +423,6 @@ def page_6():
                     f"Ouv. {label}", min_value=0.0,
                     value=float(st.session_state.cotes_1x2_ouv[key]),
                     step=0.01, key=f"c_ouv_1x2_{key}",
-                    help="0 = non renseigné",
                 )
             with c3:
                 st.session_state.cotes_1x2[key] = st.number_input(
@@ -610,7 +620,6 @@ def page_7():
                 f'{st.session_state.league}</p></div>',
                 unsafe_allow_html=True)
 
-    # --- Cotes de fermeture ---
     cotes_map = {
         "1": st.session_state.cotes_1x2["H"],
         "X": st.session_state.cotes_1x2["D"],
@@ -632,7 +641,6 @@ def page_7():
         "BTTS": st.session_state.cotes_btts["oui"],
     }
 
-    # --- Cotes d'ouverture ---
     cotes_ouv_map = None
     if st.session_state.clv_actif:
         cotes_ouv_map = {
@@ -668,6 +676,8 @@ def page_7():
             cotes_cs=st.session_state.cotes_cs,
             cotes_ouverture_map=cotes_ouv_map,
             ligue=st.session_state.league,
+            home_team=st.session_state.home_team,
+            away_team=st.session_state.away_team,
         )
     except Exception as e:
         st.error(f"Erreur lors de l'analyse : {e}")
@@ -692,10 +702,12 @@ def page_7():
         "?": "❓ Indéterminé",
     }
     st.markdown(f'<div class="regime-box">'
-                f'<b style="color:#F8FAFC;">🎭 Régime détecté :</b> '
+                f'<b style="color:#F8FAFC;">🎭 Régime :</b> '
                 f'<b style="color:#F59E0B;">{regime_labels.get(regime, regime)}</b>'
                 f' &nbsp;·&nbsp; <b style="color:#F8FAFC;">🏆 Ligue :</b> '
                 f'<b style="color:#22C55E;">{ligue}</b>'
+                f' &nbsp;·&nbsp; <b style="color:#F8FAFC;">🏅 ELO :</b> '
+                f'<b style="color:#22C55E;">{variables.get("ELO", 0.5):.2f}</b>'
                 f'</div>', unsafe_allow_html=True)
 
     st.markdown("### 📊 Qualité des données")
@@ -731,7 +743,6 @@ def page_7():
                 "Score": s["score"],
                 "P modèle": f"{s['proba']:.1%}",
                 "Cote": f"{s['cote']:.2f}",
-                "P implicite": f"{s['proba_implicite']:.1%}",
                 "Edge": f"{edge:+.1%}",
                 "EV": f"{s['ev']:+.1%}",
                 "Verdict": verdict,
@@ -749,7 +760,7 @@ def page_7():
             st.dataframe(pd.DataFrame(top_rows),
                          use_container_width=True, hide_index=True)
 
-    # --- Analyse multi-marchés (CLV + Meta) ---
+    # --- Analyse multi-marchés (avec CLV + Meta + Shin) ---
     st.markdown("### 🎯 Analyse multi-marchés (18 marchés)")
     import pandas as pd
 
@@ -764,18 +775,14 @@ def page_7():
         }
         if clv_actif:
             clv_data = r.get("clv_data")
-            if clv_data:
-                row["CLV"] = f"{clv_data['clv']:+.1%}"
-            else:
-                row["CLV"] = "—"
+            row["CLV"] = f"{clv_data['clv']:+.1%}" if clv_data else "—"
+        # Edge Shin vs naïf
+        if "edge_shin" in r:
+            row["Edge Shin"] = f"{r['edge_shin']:+.1%}"
         # Meta
         meta_data = r.get("meta_data", {})
         if meta_data:
-            ms_val = meta_data.get("score", 0)
-            n_ctx = meta_data.get("n", 0)
-            row["Meta"] = f"{ms_val:+.2f} (n={n_ctx})"
-        else:
-            row["Meta"] = "—"
+            row["Meta"] = f"{meta_data.get('score', 0):+.2f} (n={meta_data.get('n', 0)})"
         row["Chaos"] = f"{r.get('chaos', 0):.2f}" if "chaos" in r else "—"
         row["Score"] = f"{r.get('master_score', 0):.1f}" if "master_score" in r else "—"
         row["Verdict"] = r.get("verdict", "—")
@@ -810,7 +817,6 @@ def page_7():
                 verdict = "🟡 INTÉRESSANT"
             else:
                 verdict = "🟡 FAIBLE"
-
             com_rows.append({
                 "Combiné": f"{c['marche_a']} + {c['marche_b']}",
                 "P_A": f"{c['p_a']:.1%}",
@@ -819,22 +825,20 @@ def page_7():
                 "P combinée": f"{c['p_combinee']:.1%}",
                 "Cote comb.": f"{c['cote_combinee']:.2f}",
                 "EV": f"{ev:+.1%}",
-                "ROB min": f"{c['rob']:.2f}",
-                "Type": c["type"],
                 "Verdict": verdict,
             })
         st.dataframe(pd.DataFrame(com_rows),
                      use_container_width=True, hide_index=True)
-    elif combines and isinstance(combines, dict) and "erreur" in combines:
-        st.warning(f"Erreur calcul combinés : {combines['erreur']}")
 
     # --- Meilleur pari ---
     if meilleur:
-        st.markdown("### 🏆 Meilleur pari (marché simple)")
+        st.markdown("### 🏆 Meilleur pari")
         extras = []
         if clv_actif and meilleur.get("clv_data"):
             clv_val = meilleur["clv_data"]["clv"]
             extras.append(f'CLV : <b style="color:#F59E0B;">{clv_val:+.1%}</b>')
+        if "edge_shin" in meilleur:
+            extras.append(f'Edge Shin : <b style="color:#22C55E;">{meilleur["edge_shin"]:+.1%}</b>')
         meta_d = meilleur.get("meta_data", {})
         if meta_d and meta_d.get("n", 0) > 0:
             extras.append(f'Meta : <b style="color:#22C55E;">{meta_d["score"]:+.2f}</b>')
@@ -869,14 +873,15 @@ def page_7():
                         cote=meilleur["cote"],
                         regime=regime,
                         ligue=ligue,
+                        variables=variables,
                     )
                     st.success(f"✅ Pari #{pari_id} enregistré ! "
                                f"Contexte : {regime} / {ligue}.")
                 except Exception as e:
                     st.error(f"Erreur enregistrement : {e}")
         with c2:
-            st.caption("Enregistre ce pari pour suivre son résultat réel, "
-                       "améliorer la calibration et alimenter le Meta-Brain.")
+            st.caption("Enregistre ce pari pour alimenter la calibration, "
+                       "le Meta-Brain et GRADIENT-X.")
     else:
         st.error("🔴 NO BET — Aucun marché ne passe les filtres.")
 
@@ -905,18 +910,18 @@ def page_7():
 
 
 # ============================================================
-# PAGE 8 — RÉSULTATS + META-BRAIN
+# PAGE 8 — RÉSULTATS + META-BRAIN + GRADIENT + ELO
 # ============================================================
 def page_8():
     st.markdown('<div class="card"><p class="card-title">Suivi des paris</p>'
                 '<p class="card-sub">Marque chaque pari comme Gagné ou Perdu. '
-                'Le bot apprend automatiquement + alimente le Meta-Brain.</p></div>',
+                'Alimente calibration + Meta-Brain + Gradient.</p></div>',
                 unsafe_allow_html=True)
 
     pending = calib.paris_en_attente()
 
     if not pending:
-        st.info("📭 Aucun pari en attente. Enregistre un pari depuis la page Analyse.")
+        st.info("📭 Aucun pari en attente.")
     else:
         st.markdown(f"### ⏳ {len(pending)} pari(s) en attente")
         for p in pending:
@@ -946,6 +951,9 @@ def page_8():
                     st.caption(f"ROB {p['rob']:.2f}")
                 st.markdown("---")
 
+    # ============================================================
+    # Statistiques globales
+    # ============================================================
     st.markdown("### 📊 Statistiques globales")
     stats = calib.get_stats()
 
@@ -981,56 +989,112 @@ def page_8():
                 "Régime": p.get("regime", "?"),
                 "Ligue": p.get("ligue", "?"),
                 "Cote": f"{p['cote']:.2f}",
-                "P": f"{p['p_calibree']:.1%}",
                 "Résultat": "✅" if p["resultat"] else "❌",
             } for p in reversed(recents)]
             st.dataframe(pd.DataFrame(hist_rows),
                          use_container_width=True, hide_index=True)
-    else:
-        st.caption("Aucun pari résolu pour l'instant. "
-                   "Les stats apparaîtront après tes premiers résultats.")
 
-    # --- META-BRAIN : Performance par contexte ---
+    # ============================================================
+    # Meta-Brain
+    # ============================================================
     st.markdown("### 🧠 Meta-Brain — Performance par contexte")
-    st.caption("Le bot apprend dans quels contextes il est fort ou faible.")
-
     contextes = metabrain.stats_contexte()
     if not contextes:
-        st.info("📭 Aucun contexte enregistré pour l'instant. "
-                "Enregistre et résous des paris pour alimenter le Meta-Brain.")
+        st.caption("Aucun contexte enregistré. Enregistre et résous des paris.")
     else:
         import pandas as pd
         ctx_rows = []
         for c in contextes:
-            n = c["n"]
-            taux = c["taux"]
-            # Calcul MetaScore pour l'affichage
-            meta = metabrain.calculer_metascore(c["market"], c["regime"], c["ligue"])
+            meta = metabrain.calculer_metascore(
+                c["market"], c["regime"], c["ligue"]
+            )
             ctx_rows.append({
                 "Marché": c["market"],
                 "Régime": c["regime"],
                 "Ligue": c["ligue"],
-                "n": n,
-                "Taux": f"{taux:.0%}",
+                "n": c["n"],
+                "Taux": f"{c['taux']:.0%}",
                 "MetaScore": f"{meta['score']:+.2f}",
                 "Verdict": meta["verdict"],
             })
         st.dataframe(pd.DataFrame(ctx_rows),
                      use_container_width=True, hide_index=True)
 
+    # ============================================================
+    # GRADIENT-X : état d'apprentissage des poids
+    # ============================================================
+    st.markdown("### ⚙️ GRADIENT-X — Optimisation des poids")
+    st.caption("Chaque marché optimise ses poids automatiquement après 10 paris résolus.")
+    stats_g = gradient.stats_gradient()
+    if stats_g:
+        import pandas as pd
+        g_rows = [{
+            "Marché": s["market"],
+            "Paris": s["n"],
+            "Statut": s["statut"],
+        } for s in stats_g]
+        st.dataframe(pd.DataFrame(g_rows),
+                     use_container_width=True, hide_index=True)
+
+    # --- Écarts vs config (sur marchés actifs) ---
+    actifs = [s["market"] for s in stats_g if s["actif"]]
+    if actifs:
+        with st.expander("🔍 Voir les poids appris vs initiaux"):
+            marche_choisi = st.selectbox("Marché", actifs, key="select_ecarts")
+            ecarts = gradient.ecart_vs_config(marche_choisi)
+            if ecarts:
+                import pandas as pd
+                e_rows = [{
+                    "Variable": e["variable"],
+                    "Initial": f"{e['initial']:+.2f}",
+                    "Appris": f"{e['appris']:+.2f}",
+                    "Δ": f"{e['delta']:+.2f}",
+                } for e in ecarts]
+                st.dataframe(pd.DataFrame(e_rows),
+                             use_container_width=True, hide_index=True)
+
+    # ============================================================
+    # ELO — Classement
+    # ============================================================
+    st.markdown("### 🏅 ELO — Classement des équipes")
+    st.caption("Mis à jour à chaque pari résolu. Les équipes inconnues démarrent à 1500.")
+    stats_e = elo.stats_elo()
+    if not stats_e:
+        st.caption("Aucune équipe dans le classement pour l'instant.")
+    else:
+        import pandas as pd
+        e_rows = [{
+            "Équipe": e["equipe"],
+            "Rating": f"{e['rating']:.0f}",
+        } for e in stats_e[:20]]
+        st.dataframe(pd.DataFrame(e_rows),
+                     use_container_width=True, hide_index=True)
+
+    # ============================================================
+    # Zone dangereuse
+    # ============================================================
     with st.expander("⚠️ Zone dangereuse"):
-        st.caption("Efface toute la calibration, l'historique et le Meta-Brain.")
-        c1, c2 = st.columns(2)
+        st.caption("Efface les données d'apprentissage.")
+        c1, c2, c3 = st.columns(3)
         with c1:
-            if st.button("🗑️ Réinitialiser la calibration"):
+            if st.button("🗑️ Reset calibration"):
                 calib.reinitialiser()
                 st.success("Calibration réinitialisée.")
                 st.rerun()
         with c2:
-            if st.button("🗑️ Réinitialiser le Meta-Brain"):
+            if st.button("🗑️ Reset Meta-Brain"):
                 metabrain.reinitialiser()
                 st.success("Meta-Brain réinitialisé.")
                 st.rerun()
+        with c3:
+            if st.button("🗑️ Reset Gradient"):
+                                gradient.reinitialiser()
+                st.success("Gradient réinitialisé.")
+                st.rerun()
+        if st.button("🗑️ Reset ELO"):
+            elo.reinitialiser()
+            st.success("ELO réinitialisé.")
+            st.rerun()
 
 
 # ============================================================
