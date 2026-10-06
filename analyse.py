@@ -2,7 +2,7 @@
 analyse.py — Couche d'intégration.
 Prend les données du formulaire, exécute les 3 cerveaux,
 retourne un rapport complet :
-  - 18 marchés (avec CLV + Meta-Brain)
+  - 18 marchés (avec CLV + Meta-Brain + ELO)
   - scores exacts
   - combinés
 """
@@ -21,7 +21,6 @@ from score_matrix import (
 from combines import generer_combines
 
 
-# --- 18 marchés principaux ---
 MARCHES_V1 = [
     "1", "X", "2",
     "O0.5", "U0.5",
@@ -36,7 +35,6 @@ MARCHES_V1 = [
 
 
 def analyser_scores_exacts(variables, cotes_cs):
-    """Analyse les scores exacts saisis."""
     lam_h, lam_a = calculer_lambdas(variables)
     mat = construire_matrice(lam_h, lam_a)
 
@@ -69,15 +67,10 @@ def analyser_scores_exacts(variables, cotes_cs):
 def analyser_match(home_form, away_form, h2h,
                    absences, motivation, cote_home, cotes_map,
                    cotes_cs=None, cotes_ouverture_map=None,
-                   ligue="?"):
+                   ligue="?", home_team=None, away_team=None):
     """
-    Pipeline complet :
-    1. Extraction des stats (extraction.py)
-    2. Calcul des 13 variables (variables.py)
-    3. Détection du régime (poids.py)
-    4. Analyse 18 marchés (mger + oracle) — CLV + Meta-Brain
-    5. Analyse scores exacts (score_matrix.py)
-    6. Génération des combinés (combines.py)
+    Pipeline complet.
+    - home_team / away_team : pour ELO (optionnel mais recommandé)
     """
     donnees = construire_donnees(
         form_data=home_form,
@@ -86,6 +79,8 @@ def analyser_match(home_form, away_form, h2h,
         motivation=motivation,
         cote_home=cote_home,
         h2h_data=h2h,
+        home_team=home_team,
+        away_team=away_team,
     )
 
     volume = donnees.pop("_volume", 1.0)
@@ -94,7 +89,6 @@ def analyser_match(home_form, away_form, h2h,
 
     variables = calculer_variables(donnees)
 
-    # --- Détection du régime (une seule fois) ---
     try:
         regime = detecter_regime(variables, gap_niveau=0.5)
     except Exception:
@@ -128,7 +122,6 @@ def analyser_match(home_form, away_form, h2h,
     valides = [r for r in resultats if r.get("accepte")]
     meilleur = max(valides, key=lambda x: x["master_score"]) if valides else None
 
-    # --- Scores exacts ---
     scores_exacts = None
     if cotes_cs:
         try:
@@ -136,7 +129,6 @@ def analyser_match(home_form, away_form, h2h,
         except Exception as e:
             scores_exacts = {"erreur": str(e)}
 
-    # --- Combinés ---
     combines = None
     try:
         combines = generer_combines(resultats, top_n=10, ev_min=0.0)
@@ -156,4 +148,4 @@ def analyser_match(home_form, away_form, h2h,
         "meilleur": meilleur,
         "scores_exacts": scores_exacts,
         "combines": combines,
-}
+                     }
