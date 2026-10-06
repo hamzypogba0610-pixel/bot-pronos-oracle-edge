@@ -1,7 +1,10 @@
 """
 analyse.py — Couche d'intégration.
 Prend les données du formulaire, exécute les 3 cerveaux,
-retourne un rapport complet sur les 18 marchés + scores exacts.
+retourne un rapport complet :
+  - 18 marchés
+  - scores exacts
+  - combinés
 """
 
 from extraction import construire_donnees
@@ -14,6 +17,7 @@ from score_matrix import (
     proba_score,
     top_scores,
 )
+from combines import generer_combines
 
 
 # --- 18 marchés principaux ---
@@ -31,10 +35,7 @@ MARCHES_V1 = [
 
 
 def analyser_scores_exacts(variables, cotes_cs):
-    """
-    Analyse les 5 scores exacts saisis par l'utilisateur.
-    Retourne une liste de dicts avec proba, cote, edge, EV.
-    """
+    """Analyse les scores exacts saisis."""
     lam_h, lam_a = calculer_lambdas(variables)
     mat = construire_matrice(lam_h, lam_a)
 
@@ -48,7 +49,6 @@ def analyser_scores_exacts(variables, cotes_cs):
         proba_implicite = 1 / cote
         edge = p - proba_implicite
         ev = p * cote - 1
-
         resultats.append({
             "score": score,
             "proba": p,
@@ -74,6 +74,7 @@ def analyser_match(home_form, away_form, h2h,
     2. Calcul des 13 variables (variables.py)
     3. Analyse 18 marchés (mger + oracle)
     4. Analyse scores exacts (score_matrix.py)
+    5. Génération des combinés (combines.py)
     """
     donnees = construire_donnees(
         form_data=home_form,
@@ -121,6 +122,13 @@ def analyser_match(home_form, away_form, h2h,
         except Exception as e:
             scores_exacts = {"erreur": str(e)}
 
+    # --- Combinés ---
+    combines = None
+    try:
+        combines = generer_combines(resultats, top_n=10, ev_min=0.0)
+    except Exception as e:
+        combines = {"erreur": str(e)}
+
     return {
         "variables": variables,
         "qualite": {
@@ -131,4 +139,5 @@ def analyser_match(home_form, away_form, h2h,
         "resultats": resultats,
         "meilleur": meilleur,
         "scores_exacts": scores_exacts,
-    }
+        "combines": combines,
+        }
