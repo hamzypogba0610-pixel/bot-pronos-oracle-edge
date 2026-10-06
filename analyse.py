@@ -1,7 +1,7 @@
 """
 analyse.py — Couche d'intégration.
-Pipeline complet : 18 marchés + scores exacts + combinés
-+ CLV + Meta-Brain + Shin (edge optimal).
+Pipeline complet :
+18 marchés + scores + combinés + CLV + Meta-Brain + ELO + Shin + Cohérence.
 """
 
 from extraction import construire_donnees
@@ -16,6 +16,7 @@ from score_matrix import (
     top_scores,
 )
 from combines import generer_combines
+from coherence import appliquer_coherence
 
 
 MARCHES_V1 = [
@@ -31,7 +32,6 @@ MARCHES_V1 = [
 ]
 
 
-# --- Groupes de cotes pour Shin ---
 GROUPES = {
     "1":      ["1", "X", "2"],
     "X":      ["1", "X", "2"],
@@ -55,7 +55,6 @@ GROUPES = {
 
 
 def construire_groupes_cotes(market, cotes_map):
-    """Retourne le dict {key: cote} du groupe auquel appartient le marché."""
     cles = GROUPES.get(market, [market])
     groupe = {}
     for k in cles:
@@ -99,9 +98,6 @@ def analyser_match(home_form, away_form, h2h,
                    absences, motivation, cote_home, cotes_map,
                    cotes_cs=None, cotes_ouverture_map=None,
                    ligue="?", home_team=None, away_team=None):
-    """
-    Pipeline complet.
-    """
     donnees = construire_donnees(
         form_data=home_form,
         form_adv_data=away_form,
@@ -150,6 +146,12 @@ def analyser_match(home_form, away_form, h2h,
             resultats.append({
                 "market": market, "erreur": str(e), "accepte": False,
             })
+
+    # === COHÉRENCE : correction mathématique ===
+    try:
+        resultats = appliquer_coherence(resultats)
+    except Exception as e:
+        print(f"Erreur coherence : {e}")
 
     valides = [r for r in resultats if r.get("accepte")]
     meilleur = max(valides, key=lambda x: x["master_score"]) if valides else None
