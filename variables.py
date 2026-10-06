@@ -105,10 +105,16 @@ def calc_set(danger_off, solidite_def):
 
 
 def calc_style(pressing, possession, compacite, rythme, style_adv):
+    """
+    STYLE = complémentarité tactique.
+    Si tous les axes sont identiques (écarts nuls) → neutre (0.5).
+    """
     mes_axes = [pressing, possession, compacite, rythme]
     adv_axes = [style_adv["pressing"], style_adv["possession"],
                 style_adv["compacite"], style_adv["rythme"]]
     ecarts = [abs(a - b) for a, b in zip(mes_axes, adv_axes)]
+    if not ecarts or all(e == 0 for e in ecarts):
+        return 0.5
     return moyenne(ecarts)
 
 
@@ -119,9 +125,9 @@ def calc_market(proba_implicite_nette):
 def calc_elo(ecart_elo, k=1.0):
     """
     ELO normalisé ∈ [0, 1].
-    - ecart_elo = 0    → 0.50 (match équilibré)
-    - ecart_elo = +200 → ~0.73 (domicile favori)
-    - ecart_elo = −200 → ~0.27 (extérieur favori)
+    - ecart = 0    → 0.50 (équilibré)
+    - ecart = +200 → ~0.73
+    - ecart = −200 → ~0.27
     """
     return sigmoide(ecart_elo / 200.0, k=k)
 
@@ -129,9 +135,7 @@ def calc_elo(ecart_elo, k=1.0):
 # ---------- Calcul complet ----------
 
 def calculer_variables(donnees):
-    """
-    Prend un dict de données brutes, retourne les 14 variables.
-    """
+    """Prend un dict de données brutes, retourne les 14 variables."""
     return {
         "FORM":   calc_form(donnees["form_resultats"], donnees["form_qualite"]),
         "ATT":    calc_att(donnees["buts"], donnees["xg"], donnees["tirs_cadres"]),
