@@ -3,7 +3,10 @@ extraction.py — Extraction propre des données du formulaire.
 Transforme les saisies utilisateur en dict exploitable par variables.py.
 
 CONVENTION SCORE : tous les scores sont au format
-[buts équipe analysée] - [buts adversaire]
+[buts équipe gauche] - [buts équipe droite]
+
+Pour les H2H : un champ "lieu" précise si l'équipe dom ACTUELLE
+jouait à domicile ("dom") ou à l'extérieur ("ext") dans ce match historique.
 """
 
 from datetime import datetime
@@ -11,10 +14,7 @@ from datetime import datetime
 import elo
 
 
-# ---------- Parsing ----------
-
 def parser_score(score_str):
-    """'2-1' → (2, 1). Retourne None si invalide."""
     if not score_str or "-" not in score_str:
         return None
     parts = score_str.strip().split("-")
@@ -27,15 +27,12 @@ def parser_score(score_str):
 
 
 def resultat_pour_equipe(buts_pour, buts_contre):
-    """3 = victoire, 1 = nul, 0 = défaite."""
     if buts_pour > buts_contre:
         return 3
     if buts_pour == buts_contre:
         return 1
     return 0
 
-
-# ---------- Extraction de la forme ----------
 
 def extraire_form(form_data):
     points = []
@@ -84,8 +81,6 @@ def extraire_form(form_data):
     }
 
 
-# ---------- Métriques de qualité ----------
-
 def calculer_volume(n_matchs_valides, cible=5):
     return min(1.0, n_matchs_valides / cible)
 
@@ -130,20 +125,39 @@ def calculer_qualite_adversaires(form_data):
     return [0.5] * len(form_data)
 
 
-# ---------- H2H ----------
+# ---------- H2H avec gestion du lieu ----------
 
 def extraire_h2h(h2h_data):
+    """
+    Interprète les H2H du POINT DE VUE de l'équipe domicile ACTUELLE.
+
+    Pour chaque H2H :
+    - "lieu" = "dom" → l'équipe dom actuelle jouait à domicile
+      → bp = score gauche, bc = score droite
+    - "lieu" = "ext" → l'équipe dom actuelle jouait à l'extérieur
+      → bp = score droite, bc = score gauche (on inverse)
+
+    Résultat : liste de 0.0 (défaite dom actuel), 0.5 (nul), 1.0 (victoire dom actuel).
+    """
     resultats = []
     for m in h2h_data:
         parsed = parser_score(m.get("score", ""))
-        if parsed:
-            bp, bc = parsed
-            if bp > bc:
-                resultats.append(1.0)
-            elif bp < bc:
-                resultats.append(0.0)
-            else:
-                resultats.append(0.5)
+        if not parsed:
+            continue
+        gauche, droite = parsed
+        lieu = m.get("lieu", "dom")
+
+        if lieu == "dom":
+            bp, bc = gauche, droite  # équipe dom actuelle a marqué "gauche"
+        else:
+            bp, bc = droite, gauche  # équipe dom actuelle a marqué "droite"
+
+        if bp > bc:
+            resultats.append(1.0)
+        elif bp < bc:
+            resultats.append(0.0)
+        else:
+            resultats.append(0.5)
 
     if not resultats:
         return [0.5] * 5, [100, 200, 300, 400, 500]
@@ -153,20 +167,13 @@ def extraire_h2h(h2h_data):
     return resultats, ages
 
 
-# ---------- Construction du dict final ----------
-
 def construire_donnees(form_data, form_adv_data, absences,
                        motivation, cote_home, h2h_data=None,
                        home_team=None, away_team=None):
-    """
-    Construit le dict attendu par variables.calculer_variables().
-    Inclut désormais ecart_elo (calculé via elo.py).
-    """
     extrait = extraire_form(form_data)
     extrait_adv = extraire_form(form_adv_data)
     h2h_res, h2h_ages = extraire_h2h(h2h_data or [])
 
-    # --- ELO ---
     ecart_elo = 0.0
     if home_team and away_team:
         try:
@@ -175,7 +182,6 @@ def construire_donnees(form_data, form_adv_data, absences,
             ecart_elo = 0.0
 
     return {
-        # Équipe analysée
         "form_resultats": extrait["points"],
         "form_qualite": calculer_qualite_adversaires(form_data),
         "buts": extrait["buts_pour_moy"],
@@ -183,10 +189,8 @@ def construire_donnees(form_data, form_adv_data, absences,
         "tirs_cadres": extrait["tirs_cadres_moy"],
         "buts_encaisses": extrait["buts_contre_moy"],
         "xga": extrait["xga_moy"],
-        # Adversaire
         "tirs_cadres_conc": extrait_adv["tirs_cadres_moy"] or 4.0,
         "xga_adversaire": extrait_adv["xga_moy"],
-        # Contexte
         "perf_dom": 0.6,
         "perf_ext": 0.5,
         "variance_buts": extrait["variance_buts"],
@@ -194,7 +198,6 @@ def construire_donnees(form_data, form_adv_data, absences,
         "h2h_resultats": h2h_res,
         "h2h_ages": h2h_ages,
         "motivation": motivation,
-        # Placeholders (à enrichir plus tard)
         "arrets": 5, "buts_evites": 0, "erreurs_gk": 0,
         "danger_off": 0.5, "solidite_def": 0.5,
         "pressing": 0.5, "possession": 0.5,
@@ -202,9 +205,7 @@ def construire_donnees(form_data, form_adv_data, absences,
         "style_adv": {"pressing": 0.5, "possession": 0.5,
                       "compacite": 0.5, "rythme": 0.5},
         "proba_marche": 1 / cote_home if cote_home > 0 else 0.5,
-        # ELO
         "ecart_elo": ecart_elo,
-        # Métadonnées qualité
         "_volume": calculer_volume(extrait["n_matchs_valides"]),
         "_fraicheur": calculer_fraicheur(extrait["dates_valides"]),
         "_completude": calculer_completude(form_data),
