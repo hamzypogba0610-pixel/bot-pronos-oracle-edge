@@ -1,6 +1,6 @@
 """
 app.py — Interface Streamlit Oracle Edge.
-Formulaire 8 pages + analyse 18 marchés + suivi des résultats.
+Formulaire 8 pages + analyse 18 marchés + scores exacts + suivi des résultats.
 """
 
 import json
@@ -173,9 +173,9 @@ def hero():
     <div class="hero">
         <div>
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
-            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield — 18 marchés</p>
+            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield — 18 marchés + scores exacts</p>
         </div>
-        <div class="hero-badge">v1.3</div>
+        <div class="hero-badge">v1.4</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -495,6 +495,7 @@ def page_7():
             motivation=st.session_state.mot_home,
             cote_home=st.session_state.cotes_1x2["H"],
             cotes_map=cotes_map,
+            cotes_cs=st.session_state.cotes_cs,
         )
     except Exception as e:
         st.error(f"Erreur lors de l'analyse : {e}")
@@ -504,6 +505,7 @@ def page_7():
     qualite = resultat["qualite"]
     resultats = resultat["resultats"]
     meilleur = resultat["meilleur"]
+    scores_exacts = resultat.get("scores_exacts")
 
     st.markdown("### 📊 Qualité des données")
     c1, c2, c3 = st.columns(3)
@@ -517,6 +519,50 @@ def page_7():
         with cols[i % 4]:
             st.metric(k, f"{v:.2f}")
 
+    # --- Scores exacts ---
+    if scores_exacts and "scores_saisis" in scores_exacts:
+        st.markdown("### 🎲 Scores exacts")
+        c1, c2 = st.columns(2)
+        c1.metric("λ domicile", f"{scores_exacts['lambdas']['home']:.2f}")
+        c2.metric("λ extérieur", f"{scores_exacts['lambdas']['away']:.2f}")
+
+        import pandas as pd
+        cs_rows = []
+        for s in scores_exacts["scores_saisis"]:
+            edge = s["edge"]
+            if edge >= 0.03:
+                verdict = "🟢 Value"
+            elif edge >= 0:
+                verdict = "🟡 Neutre"
+            else:
+                verdict = "🔴 Négatif"
+            cs_rows.append({
+                "Score": s["score"],
+                "P modèle": f"{s['proba']:.1%}",
+                "Cote": f"{s['cote']:.2f}",
+                "P implicite": f"{s['proba_implicite']:.1%}",
+                "Edge": f"{edge:+.1%}",
+                "EV": f"{s['ev']:+.1%}",
+                "Verdict": verdict,
+            })
+        if cs_rows:
+            st.dataframe(pd.DataFrame(cs_rows),
+                         use_container_width=True, hide_index=True)
+        else:
+            st.caption("Aucun score exact valide saisi.")
+
+        st.markdown("**🏅 Top 5 scores selon le modèle**")
+        top_rows = [{
+            "Score": s,
+            "Probabilité": f"{p:.1%}",
+        } for s, p in scores_exacts.get("top_modele", [])]
+        if top_rows:
+            st.dataframe(pd.DataFrame(top_rows),
+                         use_container_width=True, hide_index=True)
+    elif scores_exacts and "erreur" in scores_exacts:
+        st.warning(f"Erreur calcul scores exacts : {scores_exacts['erreur']}")
+
+    # --- Analyse multi-marchés ---
     st.markdown("### 🎯 Analyse multi-marchés (18 marchés)")
     import pandas as pd
     df = pd.DataFrame([{
@@ -581,6 +627,7 @@ def page_7():
         "variables": variables,
         "resultats": resultats,
         "meilleur": meilleur,
+        "scores_exacts": scores_exacts,
     }
     st.download_button(
         "⬇️ Télécharger le rapport JSON",
