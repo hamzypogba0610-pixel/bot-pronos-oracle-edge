@@ -12,16 +12,19 @@ import calibration as calib
 # ---------- Score fondamental ----------
 
 def score_fondamental(variables, poids):
-    """Z_m = Σ W(i,m) × X_i, normalisé sur 100."""
+    """
+    Z_m = Σ W(i,m) × (X_i − 0.5), normalisé sur 100.
+    Centrage sur 0.5 : si toutes les variables sont neutres → Z = 0.
+    """
     z = 0.0
     for var in VARIABLES:
         w = poids.get(var, 0.0)
         x = variables.get(var, 0.5)
-        z += w * x
+        z += w * (x - 0.5)
     return z / 100.0
 
 
-def proba_brute(z, k=4.0):
+def proba_brute(z, k=2.5):
     return sigmoide(z, k=k)
 
 
