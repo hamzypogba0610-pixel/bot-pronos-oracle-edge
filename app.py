@@ -1,6 +1,6 @@
 """
 app.py — Interface Streamlit Oracle Edge.
-Formulaire 8 pages + analyse 18 marchés + scores exacts + suivi des résultats.
+Formulaire 8 pages + analyse 18 marchés + scores exacts + combinés + suivi des résultats.
 """
 
 import json
@@ -173,9 +173,9 @@ def hero():
     <div class="hero">
         <div>
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
-            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield — 18 marchés + scores exacts</p>
+            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield — 18 marchés · scores · combinés</p>
         </div>
-        <div class="hero-badge">v1.4</div>
+        <div class="hero-badge">v1.5</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -462,11 +462,9 @@ def page_7():
 
     # --- 18 marchés envoyés à l'analyse ---
     cotes_map = {
-        # 1X2
         "1": st.session_state.cotes_1x2["H"],
         "X": st.session_state.cotes_1x2["D"],
         "2": st.session_state.cotes_1x2["A"],
-        # Over / Under
         "O0.5": st.session_state.cotes_ou["0.5"]["over"],
         "U0.5": st.session_state.cotes_ou["0.5"]["under"],
         "O1.5": st.session_state.cotes_ou["1.5"]["over"],
@@ -475,14 +473,12 @@ def page_7():
         "U2.5": st.session_state.cotes_ou["2.5"]["under"],
         "O3.5": st.session_state.cotes_ou["3.5"]["over"],
         "U3.5": st.session_state.cotes_ou["3.5"]["under"],
-        # Handicaps asiatiques
         "AH-0.5": st.session_state.cotes_ah["-0.5"]["home"],
         "AH+0.5": st.session_state.cotes_ah["-0.5"]["away"],
         "AH-1.5": st.session_state.cotes_ah["-1.5"]["home"],
         "AH+1.5": st.session_state.cotes_ah["-1.5"]["away"],
         "AH-2.5": st.session_state.cotes_ah["-2.5"]["home"],
         "AH+2.5": st.session_state.cotes_ah["-2.5"]["away"],
-        # BTTS
         "BTTS": st.session_state.cotes_btts["oui"],
     }
 
@@ -506,6 +502,7 @@ def page_7():
     resultats = resultat["resultats"]
     meilleur = resultat["meilleur"]
     scores_exacts = resultat.get("scores_exacts")
+    combines = resultat.get("combines")
 
     st.markdown("### 📊 Qualité des données")
     c1, c2, c3 = st.columns(3)
@@ -576,8 +573,45 @@ def page_7():
     } for r in resultats])
     st.dataframe(df, use_container_width=True, hide_index=True)
 
+    # --- Combinés ---
+    if combines and isinstance(combines, list) and combines:
+        st.markdown("### 🔗 Meilleurs combinés (2 marchés)")
+        com_rows = []
+        for c in combines:
+            ev = c["ev"]
+            if ev >= 0.30:
+                verdict = "💎 EXCEPTIONNEL"
+            elif ev >= 0.15:
+                verdict = "🟢 FORT"
+            elif ev >= 0.05:
+                verdict = "🟡 INTÉRESSANT"
+            else:
+                verdict = "🟡 FAIBLE"
+
+            com_rows.append({
+                "Combiné": f"{c['marche_a']} + {c['marche_b']}",
+                "P_A": f"{c['p_a']:.1%}",
+                "P_B": f"{c['p_b']:.1%}",
+                "ρ": f"{c['rho']:+.2f}",
+                "P combinée": f"{c['p_combinee']:.1%}",
+                "Cote comb.": f"{c['cote_combinee']:.2f}",
+                "EV": f"{ev:+.1%}",
+                "ROB min": f"{c['rob']:.2f}",
+                "Type": c["type"],
+                "Verdict": verdict,
+            })
+        st.dataframe(pd.DataFrame(com_rows),
+                     use_container_width=True, hide_index=True)
+        st.caption("ρ = corrélation entre les deux marchés · "
+                   "Type = nature de la dépendance (🟢 synergie / 🟡 modérée)")
+    elif combines and isinstance(combines, dict) and "erreur" in combines:
+        st.warning(f"Erreur calcul combinés : {combines['erreur']}")
+    else:
+        st.caption("Aucun combiné avec EV positif détecté.")
+
+    # --- Meilleur pari ---
     if meilleur:
-        st.markdown("### 🏆 Meilleur pari")
+        st.markdown("### 🏆 Meilleur pari (marché simple)")
         st.markdown(f"""
         <div class="result-card">
             <p style="font-size:18px;font-weight:700;color:#F8FAFC;margin:0;">
@@ -628,6 +662,7 @@ def page_7():
         "resultats": resultats,
         "meilleur": meilleur,
         "scores_exacts": scores_exacts,
+        "combines": combines,
     }
     st.download_button(
         "⬇️ Télécharger le rapport JSON",
