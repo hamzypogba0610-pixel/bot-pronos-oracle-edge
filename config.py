@@ -35,7 +35,7 @@ FIABILITE = {
 }
 
 # --- Matrice W(i,m) : poids de chaque variable par marché ---
-# Marchés : "1", "X", "2", "O2.5", "U2.5", "BTTS"
+# Marchés : 1, X, 2, O0.5, U0.5, O1.5, U1.5, O2.5, U2.5, O3.5, U3.5, BTTS
 POIDS_MARCHE = {
     "1":    {"FORM": 12, "ATT": 12, "DEF": 10, "XG": 13, "HOME": 16,
              "GOALS": 5, "ABS": 7, "H2H": 5, "MOT": 5, "GK": 3,
@@ -46,12 +46,30 @@ POIDS_MARCHE = {
     "2":    {"FORM": 13, "ATT": 13, "DEF": 11, "XG": 14, "HOME": -12,
              "GOALS": 5, "ABS": 7, "H2H": 4, "MOT": 4, "GK": 4,
              "SET": 3, "STYLE": 5, "MARKET": 5},
+    "O0.5": {"FORM": 5, "ATT": 16, "DEF": -8, "XG": 16, "HOME": 3,
+             "GOALS": 12, "ABS": 5, "H2H": 5, "MOT": 3, "GK": -5,
+             "SET": 3, "STYLE": 10, "MARKET": 9},
+    "U0.5": {"FORM": 4, "ATT": -10, "DEF": 16, "XG": -14, "HOME": -3,
+             "GOALS": 18, "ABS": 3, "H2H": 6, "MOT": 3, "GK": 7,
+             "SET": 2, "STYLE": 8, "MARKET": 6},
+    "O1.5": {"FORM": 5, "ATT": 15, "DEF": -9, "XG": 17, "HOME": 3,
+             "GOALS": 14, "ABS": 4, "H2H": 5, "MOT": 3, "GK": -5,
+             "SET": 3, "STYLE": 10, "MARKET": 7},
+    "U1.5": {"FORM": 5, "ATT": -8, "DEF": 15, "XG": -13, "HOME": -3,
+             "GOALS": 17, "ABS": 3, "H2H": 6, "MOT": 3, "GK": 7,
+             "SET": 2, "STYLE": 10, "MARKET": 8},
     "O2.5": {"FORM": 6, "ATT": 14, "DEF": -10, "XG": 18, "HOME": 3,
              "GOALS": 14, "ABS": 4, "H2H": 5, "MOT": 3, "GK": -4,
              "SET": 3, "STYLE": 10, "MARKET": 6},
     "U2.5": {"FORM": 5, "ATT": -8, "DEF": 14, "XG": -14, "HOME": -3,
              "GOALS": 18, "ABS": 3, "H2H": 6, "MOT": 3, "GK": 6,
              "SET": 2, "STYLE": 12, "MARKET": 6},
+    "O3.5": {"FORM": 5, "ATT": 16, "DEF": -12, "XG": 18, "HOME": 3,
+             "GOALS": 12, "ABS": 5, "H2H": 4, "MOT": 3, "GK": -6,
+             "SET": 3, "STYLE": 11, "MARKET": 2},
+    "U3.5": {"FORM": 5, "ATT": -6, "DEF": 14, "XG": -12, "HOME": -2,
+             "GOALS": 16, "ABS": 3, "H2H": 5, "MOT": 3, "GK": 8,
+             "SET": 3, "STYLE": 12, "MARKET": 11},
     "BTTS": {"FORM": 4, "ATT": 12, "DEF": -8, "XG": 14, "HOME": 2,
              "GOALS": 12, "ABS": 4, "H2H": 8, "MOT": 3, "GK": -6,
              "SET": 2, "STYLE": 15, "MARKET": 10},
@@ -83,10 +101,10 @@ ROB_SEUILS = {
     "MOYEN": 0.75,
     "FRAGILE": 0.65,
 }
-ROB_MIN_ACCEPTATION = 0.75   # en dessous → rejet auto
+ROB_MIN_ACCEPTATION = 0.75
 
 # --- Seuils de value / EV ---
-MIN_EDGE = 0.03      # 3% d'edge minimum
+MIN_EDGE = 0.03
 MIN_ODDS = 1.50
 MAX_ODDS = 8.00
 
@@ -99,12 +117,12 @@ SCORE_SEUILS = {
     "TRES_FORT": 90,
 }
 
-# --- Poids des moteurs dans le Master Score ---
+# --- Paramètres du Master Score ---
 MASTER = {
-    "eta": 0.01,              # taux d'apprentissage adaptatif
-    "chaos_poids": 1.0,       # (1 - CHAOS) appliqué au score
-    "monte_carlo_sims": 1000, # nb simulations stress test
-    "bruit_lambda": 0.15,     # ±15% perturbation des λ
+    "eta": 0.01,
+    "chaos_poids": 1.0,
+    "monte_carlo_sims": 1000,
+    "bruit_lambda": 0.15,
 }
 
 # --- Fenêtres d'analyse ---
@@ -113,4 +131,4 @@ H2H_WINDOW = 5
 MAX_GOALS_MATRIX = 6
 
 # --- Modèle ---
-MODEL_VERSION = "oracle-edge v1.0"
+MODEL_VERSION = "oracle-edge v1.2"
