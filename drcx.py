@@ -62,10 +62,12 @@ def calculer_proba(market, variables, historique=None,
 
 # ---------- Helpers pour l'enregistrement ----------
 
-def enregistrer_prediction(market, resultat_oracle, cote):
+def enregistrer_prediction(market, resultat_oracle, cote,
+                            regime="?", ligue="?"):
     """
     Enregistre un pari recommandé dans l'historique.
     À appeler depuis app.py quand l'utilisateur accepte une analyse.
+    - regime et ligue alimentent le Meta-Brain.
     """
     return calib.enregistrer_pari(
         market=market,
@@ -74,6 +76,8 @@ def enregistrer_prediction(market, resultat_oracle, cote):
         score=resultat_oracle["master_score"],
         rob=resultat_oracle["rob"],
         verdict=resultat_oracle["verdict"],
+        regime=regime,
+        ligue=ligue,
     )
 
 
