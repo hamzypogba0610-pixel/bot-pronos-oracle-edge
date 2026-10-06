@@ -1,6 +1,6 @@
 """
 oracle.py — Cerveau 3 : Oracle Shield
-Contradictions + Chaos + Quality + NO BET + Master Score + CLV + Meta-Brain.
+Contradictions + Chaos + Quality + NO BET + Master Score + CLV + Meta-Brain + Shin.
 """
 
 import math
@@ -10,6 +10,7 @@ from config import (
 )
 from momentum import analyse_momentum
 import metabrain
+import shin
 
 
 # ---------- Détecteur de contradictions ----------
@@ -29,8 +30,6 @@ def detecter_contradictions(variables):
             contradictions.append({
                 "pair": (a, b),
                 "ecart": abs(va - vb),
-                "sens": f"{a}={'fort' if va > 0.5 else 'faible'} vs "
-                        f"{b}={'fort' if vb > 0.5 else 'faible'}",
             })
     return contradictions
 
@@ -54,7 +53,7 @@ def chaos_index(variables, contradictions_score):
     return min(1.0, chaos)
 
 
-# ---------- Quality (Q) ----------
+# ---------- Quality ----------
 
 def calculer_quality(volume_donnees, fraicheur_jours, completude):
     q_volume = 40 * min(1.0, volume_donnees)
@@ -76,6 +75,30 @@ def facteur_value(ev):
         return 1.0 + math.tanh(ev)
     except OverflowError:
         return 2.0 if ev > 0 else 0.0
+
+
+# ---------- Shin ----------
+
+def calculer_probas_shin(cotes_groupe, market):
+    """
+    Prend un dict {market_key: cote} et le market cible.
+    Retourne la proba implicite Shin pour ce market (ou None).
+    """
+    if not cotes_groupe or len(cotes_groupe) < 2:
+        return None
+    if market not in cotes_groupe:
+        return None
+
+    cles = list(cotes_groupe.keys())
+    cotes = [cotes_groupe[k] for k in cles]
+    try:
+        probas = shin.retirer_marge_shin(cotes)
+    except Exception:
+        return None
+
+    if not probas:
+        return None
+    return probas[cles.index(market)]
 
 
 # ---------- NO BET Gate ----------
@@ -112,9 +135,6 @@ def no_bet_gate(p_cal, rob, chaos, q, ev, cote,
 
 def master_score(p_cal, rob, q, value_factor, chaos,
                  clv_factor=1.0, meta_factor=1.0):
-    """
-    MASTER = 100 × P × ROB × (Q/100) × V_F × (1-CHAOS) × CLV_F × META_F
-    """
     score = (100 * p_cal * rob * (q / 100.0)
              * value_factor * (1 - chaos)
              * clv_factor * meta_factor)
@@ -135,34 +155,29 @@ def classer_score(score):
     return "🔴 REJET"
 
 
-# ---------- Pipeline complet Oracle ----------
+# ---------- Pipeline complet ----------
 
 def analyse_oracle(variables, market_result, cote,
                    cote_ouverture=None,
                    volume_donnees=1.0, fraicheur_jours=0.1, completude=1.0,
-                   regime="?", ligue="?"):
+                   regime="?", ligue="?",
+                   cotes_groupe=None):
     """
-    Pipeline complet Oracle Shield.
-    - variables : dict des 13
-    - market_result : dict de mger.analyse_mger()
-    - cote : cote de fermeture
-    - cote_ouverture : pour CLV (optionnel)
-    - regime, ligue : pour Meta-Brain
+    cotes_groupe : dict optionnel {market_key: cote} du groupe cohérent
+                   (ex: {"1": 2.10, "X": 3.40, "2": 3.50}).
+                   Si fourni → Shin calcule la proba implicite réelle.
     """
     p_cal = market_result["p_central"]
     rob = market_result["rob"]
     es = market_result.get("edge_stability")
     market = market_result["market"]
 
-    # Contradictions et chaos
+    # Contradictions / Chaos
     contradictions = detecter_contradictions(variables)
     sc_contra = score_contradictions(contradictions)
     chaos = chaos_index(variables, sc_contra)
 
-    # Quality
     q = calculer_quality(volume_donnees, fraicheur_jours, completude)
-
-    # Value
     ev = calculer_ev(p_cal, cote)
     vf = facteur_value(ev)
 
@@ -180,12 +195,20 @@ def analyse_oracle(variables, market_result, cote,
     meta_score = meta_data["score"]
     meta_factor = meta_data["facteur"]
 
+    # --- Shin : proba implicite optimale ---
+    p_imp_naive = 1.0 / cote if cote > 0 else 0.0
+    p_imp_shin = calculer_probas_shin(cotes_groupe, market)
+    if p_imp_shin is None:
+        p_imp_shin = p_imp_naive
+
+    edge_naif = p_cal - p_imp_naive
+    edge_shin = p_cal - p_imp_shin
+
     # Décision
     accepte, raisons = no_bet_gate(
         p_cal, rob, chaos, q, ev, cote, sc_contra, es, piege, meta_score
     )
 
-    # Master score
     ms = master_score(p_cal, rob, q, vf, chaos, clv_factor, meta_factor)
 
     return {
@@ -205,6 +228,12 @@ def analyse_oracle(variables, market_result, cote,
         "edge_stability": es,
         "contradictions": contradictions,
         "score_contradictions": sc_contra,
+        # --- Shin ---
+        "proba_implicite_naive": p_imp_naive,
+        "proba_implicite_shin": p_imp_shin,
+        "edge_naif": edge_naif,
+        "edge_shin": edge_shin,
+        # --- Master ---
         "master_score": ms,
         "verdict": classer_score(ms),
         "accepte": accepte,
@@ -221,19 +250,19 @@ if __name__ == "__main__":
     exemple_variables = {
         "FORM": 0.72, "ATT": 0.68, "DEF": 0.61, "XG": 0.74, "HOME": 0.66,
         "GOALS": 0.58, "ABS": 0.85, "H2H": 0.54, "MOT": 0.60, "GK": 0.65,
-        "SET": 0.52, "STYLE": 0.63, "MARKET": 0.58,
+        "SET": 0.52, "STYLE": 0.63, "MARKET": 0.58, "ELO": 0.62,
     }
-    cotes = {"1": 2.10, "X": 3.40, "2": 3.30,
-             "O2.5": 1.90, "U2.5": 1.90, "BTTS": 1.75}
+    cotes_1x2 = {"1": 2.10, "X": 3.40, "2": 3.50}
 
-    print("=== ORACLE SHIELD + CLV + META ===\n")
-    for m, c in cotes.items():
+    print("=== ORACLE + SHIN ===\n")
+    for m in ["1", "X", "2"]:
+        c = cotes_1x2[m]
         mger_res = analyse_mger(m, exemple_variables, cote=c)
         oracle_res = analyse_oracle(
             exemple_variables, mger_res, c,
             regime="B", ligue="Premier League",
+            cotes_groupe=cotes_1x2,
         )
-        statut = "✅" if oracle_res["accepte"] else "🔴"
-        print(f"{statut} [{m}] MS={oracle_res['master_score']:.1f} "
-              f"Meta={oracle_res['meta_data']['score']:+.2f} "
-              f"({oracle_res['meta_data']['verdict']})")
+        print(f"[{m}] p_cal={oracle_res['p_calibree']:.1%} · "
+              f"edge naïf={oracle_res['edge_naif']:+.2%} · "
+              f"edge Shin={oracle_res['edge_shin']:+.2%}")
