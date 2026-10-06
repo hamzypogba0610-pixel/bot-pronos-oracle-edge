@@ -1,6 +1,6 @@
 """
 oracle.py — Cerveau 3 : Oracle Shield
-Contradictions + Chaos + Quality + NO BET + Master Score + CLV.
+Contradictions + Chaos + Quality + NO BET + Master Score + CLV + Meta-Brain.
 """
 
 import math
@@ -9,22 +9,18 @@ from config import (
     MIN_EDGE, MIN_ODDS, MAX_ODDS
 )
 from momentum import analyse_momentum
+import metabrain
 
 
 # ---------- Détecteur de contradictions ----------
 
 def detecter_contradictions(variables):
-    """
-    Cherche des paires de signaux contradictoires.
-    Un signal "fort" est > 0.65. Un signal "faible" est < 0.35.
-    """
     paires_opposees = [
         ("ATT", "DEF"),
         ("XG", "GOALS"),
         ("FORM", "H2H"),
         ("HOME", "ABS"),
     ]
-
     contradictions = []
     for a, b in paires_opposees:
         va = variables.get(a, 0.5)
@@ -36,7 +32,6 @@ def detecter_contradictions(variables):
                 "sens": f"{a}={'fort' if va > 0.5 else 'faible'} vs "
                         f"{b}={'fort' if vb > 0.5 else 'faible'}",
             })
-
     return contradictions
 
 
@@ -86,7 +81,8 @@ def facteur_value(ev):
 # ---------- NO BET Gate ----------
 
 def no_bet_gate(p_cal, rob, chaos, q, ev, cote,
-                contradictions_score, es=None, piege=False):
+                contradictions_score, es=None, piege=False,
+                metascore=0.0):
     raisons = []
 
     if rob < ROB_MIN_ACCEPTATION:
@@ -105,18 +101,23 @@ def no_bet_gate(p_cal, rob, chaos, q, ev, cote,
         raisons.append(f"Edge Stability faible ({es:.2f})")
     if piege:
         raisons.append("🚨 Piège détecté : value positive mais marché défavorable")
+    if metascore <= -0.50:
+        raisons.append(f"🔴 Point faible historique sur ce contexte "
+                       f"(MetaScore {metascore:+.2f})")
 
     return (len(raisons) == 0, raisons)
 
 
 # ---------- Master Score ----------
 
-def master_score(p_cal, rob, q, value_factor, chaos, clv_factor=1.0):
+def master_score(p_cal, rob, q, value_factor, chaos,
+                 clv_factor=1.0, meta_factor=1.0):
     """
-    MASTER = 100 × P_CAL × ROB × (Q/100) × V_F × (1 - CHAOS) × CLV_F
+    MASTER = 100 × P × ROB × (Q/100) × V_F × (1-CHAOS) × CLV_F × META_F
     """
     score = (100 * p_cal * rob * (q / 100.0)
-             * value_factor * (1 - chaos) * clv_factor)
+             * value_factor * (1 - chaos)
+             * clv_factor * meta_factor)
     return max(0.0, min(100.0, score))
 
 
@@ -138,19 +139,20 @@ def classer_score(score):
 
 def analyse_oracle(variables, market_result, cote,
                    cote_ouverture=None,
-                   volume_donnees=1.0, fraicheur_jours=0.1, completude=1.0):
+                   volume_donnees=1.0, fraicheur_jours=0.1, completude=1.0,
+                   regime="?", ligue="?"):
     """
-    Prend :
-    - variables (dict des 13)
-    - market_result : dict retourné par analyse_mger()
+    Pipeline complet Oracle Shield.
+    - variables : dict des 13
+    - market_result : dict de mger.analyse_mger()
     - cote : cote de fermeture
-    - cote_ouverture : cote d'ouverture (optionnel)
-    - qualité données
-    Retourne le rapport complet, avec CLV si cote_ouverture fournie.
+    - cote_ouverture : pour CLV (optionnel)
+    - regime, ligue : pour Meta-Brain
     """
     p_cal = market_result["p_central"]
     rob = market_result["rob"]
     es = market_result.get("edge_stability")
+    market = market_result["market"]
 
     # Contradictions et chaos
     contradictions = detecter_contradictions(variables)
@@ -173,16 +175,21 @@ def analyse_oracle(variables, market_result, cote,
         clv_factor = clv_data["facteur"]
         piege = clv_data["piege"]
 
+    # --- Meta-Brain ---
+    meta_data = metabrain.calculer_metascore(market, regime, ligue)
+    meta_score = meta_data["score"]
+    meta_factor = meta_data["facteur"]
+
     # Décision
     accepte, raisons = no_bet_gate(
-        p_cal, rob, chaos, q, ev, cote, sc_contra, es, piege
+        p_cal, rob, chaos, q, ev, cote, sc_contra, es, piege, meta_score
     )
 
     # Master score
-    ms = master_score(p_cal, rob, q, vf, chaos, clv_factor)
+    ms = master_score(p_cal, rob, q, vf, chaos, clv_factor, meta_factor)
 
     return {
-        "market": market_result["market"],
+        "market": market,
         "p_calibree": p_cal,
         "rob": rob,
         "chaos": chaos,
@@ -191,6 +198,10 @@ def analyse_oracle(variables, market_result, cote,
         "value_factor": vf,
         "clv_factor": clv_factor,
         "clv_data": clv_data,
+        "meta_factor": meta_factor,
+        "meta_data": meta_data,
+        "regime": regime,
+        "ligue": ligue,
         "edge_stability": es,
         "contradictions": contradictions,
         "score_contradictions": sc_contra,
@@ -214,23 +225,15 @@ if __name__ == "__main__":
     }
     cotes = {"1": 2.10, "X": 3.40, "2": 3.30,
              "O2.5": 1.90, "U2.5": 1.90, "BTTS": 1.75}
-    cotes_ouv = {"1": 2.20, "X": 3.40, "2": 3.20,
-                 "O2.5": 1.85, "U2.5": 1.95, "BTTS": 1.80}
 
-    print("=== ORACLE SHIELD + CLV ===\n")
+    print("=== ORACLE SHIELD + CLV + META ===\n")
     for m, c in cotes.items():
         mger_res = analyse_mger(m, exemple_variables, cote=c)
         oracle_res = analyse_oracle(
             exemple_variables, mger_res, c,
-            cote_ouverture=cotes_ouv[m],
+            regime="B", ligue="Premier League",
         )
         statut = "✅" if oracle_res["accepte"] else "🔴"
-        clv = oracle_res["clv_data"]["clv"] if oracle_res["clv_data"] else 0
         print(f"{statut} [{m}] MS={oracle_res['master_score']:.1f} "
-              f"CLV={clv:+.1%} "
-              f"verdict={oracle_res['verdict']}")
-        if oracle_res["piege"]:
-            print(f"     🚨 {oracle_res['clv_data']['raison_piege']}")
-        if not oracle_res["accepte"]:
-            for r in oracle_res["raisons_rejet"]:
-                print(f"     └─ {r}")
+              f"Meta={oracle_res['meta_data']['score']:+.2f} "
+              f"({oracle_res['meta_data']['verdict']})")
