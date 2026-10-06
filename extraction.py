@@ -8,6 +8,8 @@ CONVENTION SCORE : tous les scores sont au format
 
 from datetime import datetime
 
+import elo
+
 
 # ---------- Parsing ----------
 
@@ -36,10 +38,6 @@ def resultat_pour_equipe(buts_pour, buts_contre):
 # ---------- Extraction de la forme ----------
 
 def extraire_form(form_data):
-    """
-    Prend une liste de 5 dicts {'score', 'xg', 'xga', 'tirs_cadres', 'date'}.
-    Retourne un dict complet avec toutes les stats extraites.
-    """
     points = []
     buts_pour = []
     buts_contre = []
@@ -89,19 +87,15 @@ def extraire_form(form_data):
 # ---------- Métriques de qualité ----------
 
 def calculer_volume(n_matchs_valides, cible=5):
-    """0-1 : proportion de matchs réellement saisis."""
     return min(1.0, n_matchs_valides / cible)
 
 
 def calculer_fraicheur(dates_str, today=None):
-    """0-1 : 0 = récent, 1 = très vieux (> 60 jours)."""
     if not dates_str:
         return 0.5
-
     today = today or datetime.now()
     formats = ["%d/%m/%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d.%m.%y"]
     ages = []
-
     for d in dates_str:
         for fmt in formats:
             try:
@@ -110,16 +104,13 @@ def calculer_fraicheur(dates_str, today=None):
                 break
             except (ValueError, AttributeError):
                 continue
-
     if not ages:
         return 0.5
-
     age_moy = sum(ages) / len(ages)
     return min(1.0, max(0.0, age_moy / 60.0))
 
 
 def calculer_completude(form_data):
-    """0-1 : proportion de champs stats remplis (xG, xGA, tirs cadrés)."""
     if not form_data:
         return 0.0
     total = 0
@@ -136,17 +127,12 @@ def calculer_completude(form_data):
 
 
 def calculer_qualite_adversaires(form_data):
-    """Pour l'instant : neutre (0.5). Sera amélioré avec classement réel."""
     return [0.5] * len(form_data)
 
 
 # ---------- H2H ----------
 
 def extraire_h2h(h2h_data):
-    """
-    Transforme les 5 H2H en (resultats, ages).
-    Convention : bp = score équipe home du match, bc = score équipe away.
-    """
     resultats = []
     for m in h2h_data:
         parsed = parser_score(m.get("score", ""))
@@ -162,22 +148,31 @@ def extraire_h2h(h2h_data):
     if not resultats:
         return [0.5] * 5, [100, 200, 300, 400, 500]
 
-    # Compléter jusqu'à 5
     resultats = (resultats + [0.5] * 5)[:5]
-    ages = [100, 200, 300, 400, 500]  # à affiner quand on aura les vraies dates
+    ages = [100, 200, 300, 400, 500]
     return resultats, ages
 
 
 # ---------- Construction du dict final ----------
 
 def construire_donnees(form_data, form_adv_data, absences,
-                       motivation, cote_home, h2h_data=None):
+                       motivation, cote_home, h2h_data=None,
+                       home_team=None, away_team=None):
     """
     Construit le dict attendu par variables.calculer_variables().
+    Inclut désormais ecart_elo (calculé via elo.py).
     """
     extrait = extraire_form(form_data)
     extrait_adv = extraire_form(form_adv_data)
     h2h_res, h2h_ages = extraire_h2h(h2h_data or [])
+
+    # --- ELO ---
+    ecart_elo = 0.0
+    if home_team and away_team:
+        try:
+            ecart_elo = elo.ecart_elo(home_team, away_team)
+        except Exception:
+            ecart_elo = 0.0
 
     return {
         # Équipe analysée
@@ -207,8 +202,10 @@ def construire_donnees(form_data, form_adv_data, absences,
         "style_adv": {"pressing": 0.5, "possession": 0.5,
                       "compacite": 0.5, "rythme": 0.5},
         "proba_marche": 1 / cote_home if cote_home > 0 else 0.5,
-        # Métadonnées qualité (utilisées pour Q)
+        # ELO
+        "ecart_elo": ecart_elo,
+        # Métadonnées qualité
         "_volume": calculer_volume(extrait["n_matchs_valides"]),
         "_fraicheur": calculer_fraicheur(extrait["dates_valides"]),
         "_completude": calculer_completude(form_data),
-                   }
+    }
