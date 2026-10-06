@@ -1,6 +1,6 @@
 """
 app.py — Interface Streamlit Oracle Edge.
-Formulaire 8 pages + analyse 18 marchés + scores exacts + combinés + suivi des résultats.
+Formulaire 8 pages + 18 marchés + scores exacts + combinés + CLV + suivi.
 """
 
 import json
@@ -116,6 +116,15 @@ html, body, [class*="css"], .stApp {
     padding: 16px 20px;
     margin-bottom: 12px;
 }
+.alert-trap {
+    background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(245,158,11,0.08));
+    border: 1px solid rgba(239,68,68,0.35);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin: 10px 0;
+    color: #FCA5A5;
+    font-size: 13px;
+}
 .verdict-green { color: #22C55E; font-weight: 700; }
 .verdict-yellow { color: #F59E0B; font-weight: 700; }
 .verdict-red { color: #EF4444; font-weight: 700; }
@@ -148,6 +157,7 @@ def init_state():
                        "tirs": 0, "tirs_cadres": 0, "possession": 50} for _ in range(5)],
         "abs_home": 0.0, "abs_away": 0.0,
         "mot_home": 0.5, "mot_away": 0.5,
+        # Cotes de fermeture
         "cotes_1x2": {"H": 2.00, "D": 3.50, "A": 3.50},
         "cotes_ou": {str(l): {"over": 1.90, "under": 1.90} for l in OU_LIGNES},
         "cotes_btts": {"oui": 1.85, "non": 1.85},
@@ -156,6 +166,14 @@ def init_state():
                      "-2.5": {"home": 6.00, "away": 1.12}},
         "cotes_cs": [("2-1", 7.50), ("1-1", 6.50), ("2-0", 9.00),
                      ("1-0", 8.50), ("1-2", 8.00)],
+        # Cotes d'ouverture (0 = non renseigné)
+        "clv_actif": False,
+        "cotes_1x2_ouv": {"H": 0.0, "D": 0.0, "A": 0.0},
+        "cotes_ou_ouv": {str(l): {"over": 0.0, "under": 0.0} for l in OU_LIGNES},
+        "cotes_btts_ouv": {"oui": 0.0},
+        "cotes_ah_ouv": {"-0.5": {"home": 0.0, "away": 0.0},
+                         "-1.5": {"home": 0.0, "away": 0.0},
+                         "-2.5": {"home": 0.0, "away": 0.0}},
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -173,9 +191,9 @@ def hero():
     <div class="hero">
         <div>
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
-            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield — 18 marchés · scores · combinés</p>
+            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield · CLV — 18 marchés + scores + combinés</p>
         </div>
-        <div class="hero-badge">v1.5</div>
+        <div class="hero-badge">v1.6</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -227,7 +245,7 @@ def nav():
 
 
 # ============================================================
-# PAGES 1 à 6
+# PAGES 1 à 5
 # ============================================================
 def page_1():
     st.markdown('<div class="card"><p class="card-title">Configuration du match</p>'
@@ -363,75 +381,214 @@ def page_5():
 
 def page_6():
     st.markdown('<div class="card"><p class="card-title">Cotes bookmaker</p>'
-                '<p class="card-sub">Saisis toutes les cotes disponibles.</p></div>',
+                '<p class="card-sub">Cotes de fermeture (H-1) obligatoires. '
+                'Cotes d\'ouverture optionnelles pour activer le CLV.</p></div>',
                 unsafe_allow_html=True)
 
-    st.markdown("**1X2**")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.session_state.cotes_1x2["H"] = st.number_input(
-            "🏠 Dom", min_value=1.01, value=float(st.session_state.cotes_1x2["H"]),
-            step=0.01, key="c_H",
-        )
-    with c2:
-        st.session_state.cotes_1x2["D"] = st.number_input(
-            "Nul", min_value=1.01, value=float(st.session_state.cotes_1x2["D"]),
-            step=0.01, key="c_D",
-        )
-    with c3:
-        st.session_state.cotes_1x2["A"] = st.number_input(
-            "✈️ Ext", min_value=1.01, value=float(st.session_state.cotes_1x2["A"]),
-            step=0.01, key="c_A",
-        )
+    # --- Toggle CLV ---
+    st.session_state.clv_actif = st.toggle(
+        "🔓 Activer le calcul du CLV (saisir les cotes d'ouverture)",
+        value=st.session_state.clv_actif,
+    )
+    if st.session_state.clv_actif:
+        st.caption("📘 Le CLV mesure le mouvement du marché entre l'ouverture "
+                   "et la fermeture. Un CLV positif est un **signal fort** que "
+                   "le marché valide notre analyse.")
 
-    st.markdown("**Over / Under**")
+    # ============================================================
+    # 1X2
+    # ============================================================
+    st.markdown("### **1X2**")
+    if st.session_state.clv_actif:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.markdown("**Sélection**")
+        c2.markdown("**Ouverture**")
+        c3.markdown("**Fermeture**")
+    else:
+        c1, c2, c3 = st.columns(3)
+
+    with (c1 if st.session_state.clv_actif else c1):
+        pass
+
+    if st.session_state.clv_actif:
+        # Version avec ouverture
+        for label, key_ouv, key_fer, label_full in [
+            ("🏠 Dom", "H", "H", st.session_state.home_team or "Dom"),
+            ("Nul", "D", "D", "Nul"),
+            ("✈️ Ext", "A", "A", st.session_state.away_team or "Ext"),
+        ]:
+            c1, c2, c3 = st.columns(3)
+            c1.markdown(f"**{label}**")
+            with c2:
+                st.session_state.cotes_1x2_ouv[key_ouv] = st.number_input(
+                    f"Ouv. {label}", min_value=0.0,
+                    value=float(st.session_state.cotes_1x2_ouv[key_ouv]),
+                    step=0.01, key=f"c_ouv_1x2_{key_ouv}",
+                    help="0 = non renseigné",
+                )
+            with c3:
+                st.session_state.cotes_1x2[key_fer] = st.number_input(
+                    f"Ferm. {label}", min_value=1.01,
+                    value=float(st.session_state.cotes_1x2[key_fer]),
+                    step=0.01, key=f"c_fer_1x2_{key_fer}",
+                )
+    else:
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.session_state.cotes_1x2["H"] = st.number_input(
+                "🏠 Dom", min_value=1.01, value=float(st.session_state.cotes_1x2["H"]),
+                step=0.01, key="c_H",
+            )
+        with c2:
+            st.session_state.cotes_1x2["D"] = st.number_input(
+                "Nul", min_value=1.01, value=float(st.session_state.cotes_1x2["D"]),
+                step=0.01, key="c_D",
+            )
+        with c3:
+            st.session_state.cotes_1x2["A"] = st.number_input(
+                "✈️ Ext", min_value=1.01, value=float(st.session_state.cotes_1x2["A"]),
+                step=0.01, key="c_A",
+            )
+
+    # ============================================================
+    # OVER / UNDER
+    # ============================================================
+    st.markdown("### **Over / Under**")
     for l in OU_LIGNES:
-        c1, c2, c3 = st.columns([1, 1, 1])
-        c1.markdown(f"Ligne {l}")
+        st.markdown(f"**Ligne {l}**")
+        if st.session_state.clv_actif:
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.session_state.cotes_ou_ouv[str(l)]["over"] = st.number_input(
+                    "Ouv. Over", min_value=0.0,
+                    value=float(st.session_state.cotes_ou_ouv[str(l)]["over"]),
+                    step=0.01, key=f"c_ouv_ou_o_{l}",
+                )
+            with c2:
+                st.session_state.cotes_ou[str(l)]["over"] = st.number_input(
+                    "Ferm. Over", min_value=1.01,
+                    value=float(st.session_state.cotes_ou[str(l)]["over"]),
+                    step=0.01, key=f"c_fer_ou_o_{l}",
+                )
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.session_state.cotes_ou_ouv[str(l)]["under"] = st.number_input(
+                    "Ouv. Under", min_value=0.0,
+                    value=float(st.session_state.cotes_ou_ouv[str(l)]["under"]),
+                    step=0.01, key=f"c_ouv_ou_u_{l}",
+                )
+            with c2:
+                st.session_state.cotes_ou[str(l)]["under"] = st.number_input(
+                    "Ferm. Under", min_value=1.01,
+                    value=float(st.session_state.cotes_ou[str(l)]["under"]),
+                    step=0.01, key=f"c_fer_ou_u_{l}",
+                )
+        else:
+            c1, c2, c3 = st.columns([1, 1, 1])
+            c1.markdown(f"Ligne {l}")
+            with c2:
+                st.session_state.cotes_ou[str(l)]["over"] = st.number_input(
+                    "Over", min_value=1.01,
+                    value=float(st.session_state.cotes_ou[str(l)]["over"]),
+                    step=0.01, key=f"c_ou_o_{l}",
+                )
+            with c3:
+                st.session_state.cotes_ou[str(l)]["under"] = st.number_input(
+                    "Under", min_value=1.01,
+                    value=float(st.session_state.cotes_ou[str(l)]["under"]),
+                    step=0.01, key=f"c_ou_u_{l}",
+                )
+
+    # ============================================================
+    # BTTS
+    # ============================================================
+    st.markdown("### **BTTS**")
+    if st.session_state.clv_actif:
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.session_state.cotes_btts_ouv["oui"] = st.number_input(
+                "Ouv. Oui", min_value=0.0,
+                value=float(st.session_state.cotes_btts_ouv["oui"]),
+                step=0.01, key="c_ouv_btts",
+            )
         with c2:
-            st.session_state.cotes_ou[str(l)]["over"] = st.number_input(
-                "Over", min_value=1.01,
-                value=float(st.session_state.cotes_ou[str(l)]["over"]),
-                step=0.01, key=f"c_ou_o_{l}",
+            st.session_state.cotes_btts["oui"] = st.number_input(
+                "Ferm. Oui", min_value=1.01,
+                value=float(st.session_state.cotes_btts["oui"]),
+                step=0.01, key="c_fer_btts",
             )
         with c3:
-            st.session_state.cotes_ou[str(l)]["under"] = st.number_input(
-                "Under", min_value=1.01,
-                value=float(st.session_state.cotes_ou[str(l)]["under"]),
-                step=0.01, key=f"c_ou_u_{l}",
+            st.session_state.cotes_btts["non"] = st.number_input(
+                "Ferm. Non", min_value=1.01,
+                value=float(st.session_state.cotes_btts["non"]),
+                step=0.01, key="c_fer_btts_non",
+            )
+    else:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.session_state.cotes_btts["oui"] = st.number_input(
+                "Oui", min_value=1.01, value=float(st.session_state.cotes_btts["oui"]),
+                step=0.01, key="c_btts_oui",
+            )
+        with c2:
+            st.session_state.cotes_btts["non"] = st.number_input(
+                "Non", min_value=1.01, value=float(st.session_state.cotes_btts["non"]),
+                step=0.01, key="c_btts_non",
             )
 
-    st.markdown("**BTTS**")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.session_state.cotes_btts["oui"] = st.number_input(
-            "Oui", min_value=1.01, value=float(st.session_state.cotes_btts["oui"]),
-            step=0.01, key="c_btts_oui",
-        )
-    with c2:
-        st.session_state.cotes_btts["non"] = st.number_input(
-            "Non", min_value=1.01, value=float(st.session_state.cotes_btts["non"]),
-            step=0.01, key="c_btts_non",
-        )
-
-    st.markdown("**Handicaps asiatiques**")
+    # ============================================================
+    # HANDICAPS
+    # ============================================================
+    st.markdown("### **Handicaps asiatiques**")
     for ligne in ["-0.5", "-1.5", "-2.5"]:
-        c1, c2, c3 = st.columns([1, 1, 1])
-        c1.markdown(f"Ligne {ligne}")
-        with c2:
-            st.session_state.cotes_ah[ligne]["home"] = st.number_input(
-                "Home", min_value=1.01,
-                value=float(st.session_state.cotes_ah[ligne]["home"]),
-                step=0.01, key=f"c_ah_h_{ligne}",
-            )
-        with c3:
-            st.session_state.cotes_ah[ligne]["away"] = st.number_input(
-                "Away", min_value=1.01,
-                value=float(st.session_state.cotes_ah[ligne]["away"]),
-                step=0.01, key=f"c_ah_a_{ligne}",
-            )
+        st.markdown(f"**Ligne {ligne}**")
+        if st.session_state.clv_actif:
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.session_state.cotes_ah_ouv[ligne]["home"] = st.number_input(
+                    "Ouv. Home", min_value=0.0,
+                    value=float(st.session_state.cotes_ah_ouv[ligne]["home"]),
+                    step=0.01, key=f"c_ouv_ah_h_{ligne}",
+                )
+            with c2:
+                st.session_state.cotes_ah[ligne]["home"] = st.number_input(
+                    "Ferm. Home", min_value=1.01,
+                    value=float(st.session_state.cotes_ah[ligne]["home"]),
+                    step=0.01, key=f"c_fer_ah_h_{ligne}",
+                )
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.session_state.cotes_ah_ouv[ligne]["away"] = st.number_input(
+                    "Ouv. Away", min_value=0.0,
+                    value=float(st.session_state.cotes_ah_ouv[ligne]["away"]),
+                    step=0.01, key=f"c_ouv_ah_a_{ligne}",
+                )
+            with c2:
+                st.session_state.cotes_ah[ligne]["away"] = st.number_input(
+                    "Ferm. Away", min_value=1.01,
+                    value=float(st.session_state.cotes_ah[ligne]["away"]),
+                    step=0.01, key=f"c_fer_ah_a_{ligne}",
+                )
+        else:
+            c1, c2, c3 = st.columns([1, 1, 1])
+            c1.markdown(f"Ligne {ligne}")
+            with c2:
+                st.session_state.cotes_ah[ligne]["home"] = st.number_input(
+                    "Home", min_value=1.01,
+                    value=float(st.session_state.cotes_ah[ligne]["home"]),
+                    step=0.01, key=f"c_ah_h_{ligne}",
+                )
+            with c3:
+                st.session_state.cotes_ah[ligne]["away"] = st.number_input(
+                    "Away", min_value=1.01,
+                    value=float(st.session_state.cotes_ah[ligne]["away"]),
+                    step=0.01, key=f"c_ah_a_{ligne}",
+                )
 
-    st.markdown("**Top 5 scores exacts**")
+    # ============================================================
+    # SCORES EXACTS
+    # ============================================================
+    st.markdown("### **Top 5 scores exacts**")
     for i in range(5):
         c1, c2 = st.columns([1, 2])
         with c1:
@@ -460,7 +617,7 @@ def page_7():
                 f'{st.session_state.league}</p></div>',
                 unsafe_allow_html=True)
 
-    # --- 18 marchés envoyés à l'analyse ---
+    # --- 18 marchés : cotes de fermeture ---
     cotes_map = {
         "1": st.session_state.cotes_1x2["H"],
         "X": st.session_state.cotes_1x2["D"],
@@ -482,6 +639,30 @@ def page_7():
         "BTTS": st.session_state.cotes_btts["oui"],
     }
 
+    # --- 18 marchés : cotes d'ouverture (optionnel) ---
+    cotes_ouv_map = None
+    if st.session_state.clv_actif:
+        cotes_ouv_map = {
+            "1": st.session_state.cotes_1x2_ouv["H"],
+            "X": st.session_state.cotes_1x2_ouv["D"],
+            "2": st.session_state.cotes_1x2_ouv["A"],
+            "O0.5": st.session_state.cotes_ou_ouv["0.5"]["over"],
+            "U0.5": st.session_state.cotes_ou_ouv["0.5"]["under"],
+            "O1.5": st.session_state.cotes_ou_ouv["1.5"]["over"],
+            "U1.5": st.session_state.cotes_ou_ouv["1.5"]["under"],
+            "O2.5": st.session_state.cotes_ou_ouv["2.5"]["over"],
+            "U2.5": st.session_state.cotes_ou_ouv["2.5"]["under"],
+            "O3.5": st.session_state.cotes_ou_ouv["3.5"]["over"],
+            "U3.5": st.session_state.cotes_ou_ouv["3.5"]["under"],
+            "AH-0.5": st.session_state.cotes_ah_ouv["-0.5"]["home"],
+            "AH+0.5": st.session_state.cotes_ah_ouv["-0.5"]["away"],
+            "AH-1.5": st.session_state.cotes_ah_ouv["-1.5"]["home"],
+            "AH+1.5": st.session_state.cotes_ah_ouv["-1.5"]["away"],
+            "AH-2.5": st.session_state.cotes_ah_ouv["-2.5"]["home"],
+            "AH+2.5": st.session_state.cotes_ah_ouv["-2.5"]["away"],
+            "BTTS": st.session_state.cotes_btts_ouv["oui"],
+        }
+
     try:
         resultat = analyser_match(
             home_form=st.session_state.home_form,
@@ -492,6 +673,7 @@ def page_7():
             cote_home=st.session_state.cotes_1x2["H"],
             cotes_map=cotes_map,
             cotes_cs=st.session_state.cotes_cs,
+            cotes_ouverture_map=cotes_ouv_map,
         )
     except Exception as e:
         st.error(f"Erreur lors de l'analyse : {e}")
@@ -545,8 +727,6 @@ def page_7():
         if cs_rows:
             st.dataframe(pd.DataFrame(cs_rows),
                          use_container_width=True, hide_index=True)
-        else:
-            st.caption("Aucun score exact valide saisi.")
 
         st.markdown("**🏅 Top 5 scores selon le modèle**")
         top_rows = [{
@@ -556,22 +736,47 @@ def page_7():
         if top_rows:
             st.dataframe(pd.DataFrame(top_rows),
                          use_container_width=True, hide_index=True)
-    elif scores_exacts and "erreur" in scores_exacts:
-        st.warning(f"Erreur calcul scores exacts : {scores_exacts['erreur']}")
 
-    # --- Analyse multi-marchés ---
+    # --- Analyse multi-marchés (avec CLV) ---
     st.markdown("### 🎯 Analyse multi-marchés (18 marchés)")
     import pandas as pd
-    df = pd.DataFrame([{
-        "Marché": r.get("market", "-"),
-        "P_CAL": f"{r.get('p_calibree', 0):.1%}" if "p_calibree" in r else "—",
-        "ROB": f"{r.get('rob', 0):.2f}" if "rob" in r else "—",
-        "EV": f"{r.get('ev', 0):+.1%}" if "ev" in r else "—",
-        "Chaos": f"{r.get('chaos', 0):.2f}" if "chaos" in r else "—",
-        "Score": f"{r.get('master_score', 0):.1f}" if "master_score" in r else "—",
-        "Verdict": r.get("verdict", "—"),
-    } for r in resultats])
-    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    clv_actif = st.session_state.clv_actif
+    rows = []
+    for r in resultats:
+        row = {
+            "Marché": r.get("market", "-"),
+            "P_CAL": f"{r.get('p_calibree', 0):.1%}" if "p_calibree" in r else "—",
+            "ROB": f"{r.get('rob', 0):.2f}" if "rob" in r else "—",
+            "EV": f"{r.get('ev', 0):+.1%}" if "ev" in r else "—",
+        }
+        if clv_actif:
+            clv_data = r.get("clv_data")
+            if clv_data:
+                row["CLV"] = f"{clv_data['clv']:+.1%}"
+                row["Mouvement"] = clv_data["verdict"]
+            else:
+                row["CLV"] = "—"
+                row["Mouvement"] = "—"
+        row["Chaos"] = f"{r.get('chaos', 0):.2f}" if "chaos" in r else "—"
+        row["Score"] = f"{r.get('master_score', 0):.1f}" if "master_score" in r else "—"
+        row["Verdict"] = r.get("verdict", "—")
+        if r.get("piege"):
+            row["Verdict"] = "🚨 PIÈGE"
+        rows.append(row)
+
+    st.dataframe(pd.DataFrame(rows),
+                 use_container_width=True, hide_index=True)
+
+    # --- Alertes pièges ---
+    pieges = [r for r in resultats if r.get("piege")]
+    if pieges:
+        st.markdown("### 🚨 Alertes pièges")
+        for p in pieges:
+            raison = p.get("clv_data", {}).get("raison_piege", "Signal défavorable")
+            st.markdown(f'<div class="alert-trap">'
+                        f'<b>{p["market"]}</b> — {raison}'
+                        f'</div>', unsafe_allow_html=True)
 
     # --- Combinés ---
     if combines and isinstance(combines, list) and combines:
@@ -602,16 +807,18 @@ def page_7():
             })
         st.dataframe(pd.DataFrame(com_rows),
                      use_container_width=True, hide_index=True)
-        st.caption("ρ = corrélation entre les deux marchés · "
-                   "Type = nature de la dépendance (🟢 synergie / 🟡 modérée)")
     elif combines and isinstance(combines, dict) and "erreur" in combines:
         st.warning(f"Erreur calcul combinés : {combines['erreur']}")
-    else:
-        st.caption("Aucun combiné avec EV positif détecté.")
 
     # --- Meilleur pari ---
     if meilleur:
         st.markdown("### 🏆 Meilleur pari (marché simple)")
+        clv_html = ""
+        if clv_actif and meilleur.get("clv_data"):
+            clv_val = meilleur["clv_data"]["clv"]
+            clv_verdict = meilleur["clv_data"]["verdict"]
+            clv_html = (f' · CLV : <b style="color:#F59E0B;">{clv_val:+.1%}</b> '
+                        f'({clv_verdict})')
         st.markdown(f"""
         <div class="result-card">
             <p style="font-size:18px;font-weight:700;color:#F8FAFC;margin:0;">
@@ -621,7 +828,7 @@ def page_7():
                 P calibrée : <b style="color:#22C55E;">{meilleur['p_calibree']:.1%}</b> ·
                 ROB : <b style="color:#22C55E;">{meilleur['rob']:.2f}</b> ·
                 EV : <b style="color:#22C55E;">{meilleur['ev']:+.1%}</b> ·
-                Chaos : <b style="color:#F59E0B;">{meilleur['chaos']:.2f}</b>
+                Chaos : <b style="color:#F59E0B;">{meilleur['chaos']:.2f}</b>{clv_html}
             </p>
             <p style="margin-top:8px;">
                 <span class="verdict-green">{meilleur['verdict']}</span>
@@ -663,6 +870,7 @@ def page_7():
         "meilleur": meilleur,
         "scores_exacts": scores_exacts,
         "combines": combines,
+        "clv_actif": clv_actif,
     }
     st.download_button(
         "⬇️ Télécharger le rapport JSON",
