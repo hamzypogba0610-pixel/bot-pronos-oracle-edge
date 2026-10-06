@@ -2,13 +2,14 @@
 analyse.py — Couche d'intégration.
 Prend les données du formulaire, exécute les 3 cerveaux,
 retourne un rapport complet :
-  - 18 marchés (avec CLV si cotes d'ouverture fournies)
+  - 18 marchés (avec CLV + Meta-Brain)
   - scores exacts
   - combinés
 """
 
 from extraction import construire_donnees
 from variables import calculer_variables
+from poids import detecter_regime
 from mger import analyse_mger
 from oracle import analyse_oracle
 from score_matrix import (
@@ -67,14 +68,16 @@ def analyser_scores_exacts(variables, cotes_cs):
 
 def analyser_match(home_form, away_form, h2h,
                    absences, motivation, cote_home, cotes_map,
-                   cotes_cs=None, cotes_ouverture_map=None):
+                   cotes_cs=None, cotes_ouverture_map=None,
+                   ligue="?"):
     """
     Pipeline complet :
     1. Extraction des stats (extraction.py)
     2. Calcul des 13 variables (variables.py)
-    3. Analyse 18 marchés (mger + oracle) — avec CLV si cotes ouverture fournies
-    4. Analyse scores exacts (score_matrix.py)
-    5. Génération des combinés (combines.py)
+    3. Détection du régime (poids.py)
+    4. Analyse 18 marchés (mger + oracle) — CLV + Meta-Brain
+    5. Analyse scores exacts (score_matrix.py)
+    6. Génération des combinés (combines.py)
     """
     donnees = construire_donnees(
         form_data=home_form,
@@ -91,6 +94,12 @@ def analyser_match(home_form, away_form, h2h,
 
     variables = calculer_variables(donnees)
 
+    # --- Détection du régime (une seule fois) ---
+    try:
+        regime = detecter_regime(variables, gap_niveau=0.5)
+    except Exception:
+        regime = "?"
+
     cotes_ouv = cotes_ouverture_map or {}
 
     resultats = []
@@ -106,6 +115,8 @@ def analyser_match(home_form, away_form, h2h,
                 volume_donnees=volume,
                 fraicheur_jours=fraicheur,
                 completude=completude,
+                regime=regime,
+                ligue=ligue,
             )
             oracle_res["cote"] = cote
             resultats.append(oracle_res)
@@ -139,8 +150,10 @@ def analyser_match(home_form, away_form, h2h,
             "fraicheur": fraicheur,
             "completude": completude,
         },
+        "regime": regime,
+        "ligue": ligue,
         "resultats": resultats,
         "meilleur": meilleur,
         "scores_exacts": scores_exacts,
         "combines": combines,
-  }
+}
