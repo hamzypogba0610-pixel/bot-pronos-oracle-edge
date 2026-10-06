@@ -1,9 +1,8 @@
 # ============================================================
-# CONFIG — Oracle Edge v2.0
-# 14 variables (ajout ELO) · 18 marchés
+# CONFIG — Oracle Edge v2.1
+# 14 variables · 18 marchés · BASELINES statistiques
 # ============================================================
 
-# --- 5 championnats analysés ---
 LEAGUES = {
     "Premier League": {"pays": "Angleterre", "avg_home": 1.55, "avg_away": 1.30},
     "Bundesliga":     {"pays": "Allemagne",  "avg_home": 1.70, "avg_away": 1.40},
@@ -12,7 +11,6 @@ LEAGUES = {
     "Ligue 1":        {"pays": "France",     "avg_home": 1.50, "avg_away": 1.20},
 }
 
-# --- Les 14 variables ---
 VARIABLES = [
     "FORM", "ATT", "DEF", "XG", "HOME",
     "GOALS", "ABS", "H2H", "MOT", "GK",
@@ -26,7 +24,6 @@ POIDS_BASE = {
     "MARKET": 0.04, "ELO": 0.07,
 }
 
-# --- Fiabilité initiale (0-1) ---
 FIABILITE = {
     "FORM": 0.86, "ATT": 0.80, "DEF": 0.78, "XG": 0.92,
     "HOME": 0.82, "GOALS": 0.80, "ABS": 0.72, "H2H": 0.55,
@@ -34,9 +31,29 @@ FIABILITE = {
     "MARKET": 0.85, "ELO": 0.88,
 }
 
-# --- Matrice W(i,m) : 18 marchés × 14 variables ---
-# Règle ELO : plus l'écart favorise le domicile → poids + sur marchés "dom",
-#             − sur marchés "ext", selon la nature du marché.
+# --- BASELINES : probabilité naturelle de chaque marché ---
+# Statistiques sur les 5 grands championnats (dernières saisons)
+BASELINES = {
+    "1":      0.44,
+    "X":      0.26,
+    "2":      0.30,
+    "O0.5":   0.92,
+    "U0.5":   0.08,
+    "O1.5":   0.78,
+    "U1.5":   0.22,
+    "O2.5":   0.52,
+    "U2.5":   0.48,
+    "O3.5":   0.28,
+    "U3.5":   0.72,
+    "AH-0.5": 0.44,
+    "AH+0.5": 0.56,
+    "AH-1.5": 0.28,
+    "AH+1.5": 0.72,
+    "AH-2.5": 0.14,
+    "AH+2.5": 0.86,
+    "BTTS":   0.52,
+}
+
 POIDS_MARCHE = {
     "1":      {"FORM": 11, "ATT": 11, "DEF": 9, "XG": 12, "HOME": 14,
                "GOALS": 5, "ABS": 6, "H2H": 5, "MOT": 5, "GK": 3,
@@ -94,7 +111,6 @@ POIDS_MARCHE = {
                "SET": 2, "STYLE": 14, "MARKET": 9, "ELO": -3},
 }
 
-# --- Multiplicateurs par régime (14 variables) ---
 REGIMES = {
     "A": {"FORM": 0.9, "ATT": 0.7, "DEF": 1.3, "XG": 0.85, "HOME": 1.1,
           "GOALS": 1.3, "ABS": 0.9, "H2H": 1.1, "MOT": 1.0, "GK": 1.3,
@@ -113,30 +129,21 @@ REGIMES = {
           "SET": 0.8, "STYLE": 0.8, "MARKET": 1.4, "ELO": 0.9},
 }
 
-# --- Seuils de robustesse ---
 ROB_SEUILS = {
-    "EXCELLENT": 0.92,
-    "ROBUSTE": 0.85,
-    "MOYEN": 0.75,
-    "FRAGILE": 0.65,
+    "EXCELLENT": 0.92, "ROBUSTE": 0.85,
+    "MOYEN": 0.75, "FRAGILE": 0.65,
 }
 ROB_MIN_ACCEPTATION = 0.75
 
-# --- Seuils de value / EV ---
 MIN_EDGE = 0.03
 MIN_ODDS = 1.50
 MAX_ODDS = 8.00
 
-# --- Seuils de score final ---
 SCORE_SEUILS = {
-    "REJET": 50,
-    "FAIBLE": 60,
-    "INTERESSANT": 70,
-    "FORT": 80,
-    "TRES_FORT": 90,
+    "REJET": 50, "FAIBLE": 60, "INTERESSANT": 70,
+    "FORT": 80, "TRES_FORT": 90,
 }
 
-# --- Paramètres du Master Score ---
 MASTER = {
     "eta": 0.01,
     "chaos_poids": 1.0,
@@ -144,10 +151,8 @@ MASTER = {
     "bruit_lambda": 0.15,
 }
 
-# --- Fenêtres d'analyse ---
 FORM_WINDOW = 5
 H2H_WINDOW = 5
 MAX_GOALS_MATRIX = 6
 
-# --- Modèle ---
-MODEL_VERSION = "oracle-edge v2.0"
+MODEL_VERSION = "oracle-edge v2.1"
