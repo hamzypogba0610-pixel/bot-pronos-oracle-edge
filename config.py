@@ -1,85 +1,86 @@
 # ============================================================
 # CONFIG — Oracle Edge v2.3
-# 14 variables · 18 marchés · BASELINES · 40+ compétitions
+# 14 variables · 18 marchés · BASELINES · 58 compétitions
 # ============================================================
-
-# --- Championnats & compétitions ---
-# avg_home / avg_away = moyennes de buts par équipe (dom/ext) dans cette compétition
 
 LEAGUES = {
     # ============== TOP 5 EUROPÉEN ==============
-    "Premier League":     {"pays": "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Angleterre",  "avg_home": 1.55, "avg_away": 1.30, "type": "national"},
-    "Bundesliga":         {"pays": "🇩🇪 Allemagne",     "avg_home": 1.70, "avg_away": 1.40, "type": "national"},
-    "Serie A":            {"pays": "🇮🇹 Italie",        "avg_home": 1.50, "avg_away": 1.25, "type": "national"},
-    "La Liga":            {"pays": "🇪🇸 Espagne",       "avg_home": 1.45, "avg_away": 1.20, "type": "national"},
-    "Ligue 1":            {"pays": "🇫🇷 France",        "avg_home": 1.50, "avg_away": 1.20, "type": "national"},
+    "Premier League":         {"pays": "Angleterre",         "avg_home": 1.55, "avg_away": 1.30, "type": "national"},
+    "Bundesliga":             {"pays": "Allemagne",          "avg_home": 1.70, "avg_away": 1.40, "type": "national"},
+    "Serie A":                {"pays": "Italie",             "avg_home": 1.50, "avg_away": 1.25, "type": "national"},
+    "La Liga":                {"pays": "Espagne",            "avg_home": 1.45, "avg_away": 1.20, "type": "national"},
+    "Ligue 1":                {"pays": "France",             "avg_home": 1.50, "avg_away": 1.20, "type": "national"},
 
-    # ============== EUROPE — AUTRES CHAMPIONNATS MAJEURS ==============
-    "Eredivisie":         {"pays": "🇳🇱 Pays-Bas",      "avg_home": 1.75, "avg_away": 1.45, "type": "national"},
-    "Pro League (Belgique)": {"pays": "🇧🇪 Belgique",   "avg_home": 1.60, "avg_away": 1.35, "type": "national"},
-    "Primeira Liga":      {"pays": "🇵🇹 Portugal",      "avg_home": 1.45, "avg_away": 1.15, "type": "national"},
-    "Süper Lig":          {"pays": "🇹🇷 Turquie",       "avg_home": 1.65, "avg_away": 1.30, "type": "national"},
-    "Championship":       {"pays": "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Angleterre D2", "avg_home": 1.40, "avg_away": 1.15, "type": "national"},
+    # ============== EUROPE — MAJEURS ==============
+    "Eredivisie":             {"pays": "Pays-Bas",           "avg_home": 1.75, "avg_away": 1.45, "type": "national"},
+    "Pro League (Belgique)":  {"pays": "Belgique",           "avg_home": 1.60, "avg_away": 1.35, "type": "national"},
+    "Primeira Liga":          {"pays": "Portugal",           "avg_home": 1.45, "avg_away": 1.15, "type": "national"},
+    "Süper Lig":              {"pays": "Turquie",            "avg_home": 1.65, "avg_away": 1.30, "type": "national"},
+    "Championship":           {"pays": "Angleterre D2",      "avg_home": 1.40, "avg_away": 1.15, "type": "national"},
 
-    # ============== EUROPE — CHAMPIONNATS SECONDAIRES ==============
-    "Süper Lig Autriche": {"pays": "🇦🇹 Autriche",      "avg_home": 1.60, "avg_away": 1.25, "type": "national"},
-    "Super League Grèce": {"pays": "🇬🇷 Grèce",         "avg_home": 1.35, "avg_away": 1.05, "type": "national"},
-    "Scottish Premiership": {"pays": "🏴󠁧󠁢󠁳󠁣󠁴󠁿 Écosse",   "avg_home": 1.55, "avg_away": 1.25, "type": "national"},
-    "Allsvenskan":        {"pays": "🇸🇪 Suède",         "avg_home": 1.55, "avg_away": 1.20, "type": "national"},
-    "Eliteserien":        {"pays": "🇳🇴 Norvège",       "avg_home": 1.65, "avg_away": 1.30, "type": "national"},
-    "Superligaen":        {"pays": "🇩🇰 Danemark",      "avg_home": 1.60, "avg_away": 1.30, "type": "national"},
-    "Veikkausliiga":      {"pays": "🇫🇮 Finlande",      "avg_home": 1.40, "avg_away": 1.15, "type": "national"},
-    "Swiss Super League": {"pays": "🇨🇭 Suisse",        "avg_home": 1.65, "avg_away": 1.35, "type": "national"},
-    "Chypre D1":          {"pays": "🇨🇾 Chypre",        "avg_home": 1.40, "avg_away": 1.10, "type": "national"},
-    "Ligat ha'Al":        {"pays": "🇮🇱 Israël",        "avg_home": 1.40, "avg_away": 1.10, "type": "national"},
-    "Ekstraklasa":        {"pays": "🇵🇱 Pologne",       "avg_home": 1.45, "avg_away": 1.15, "type": "national"},
-    "Fortuna Liga":       {"pays": "🇨🇿 Tchéquie",      "avg_home": 1.55, "avg_away": 1.20, "type": "national"},
-    "Nemzeti Bajnoksag":  {"pays": "🇭🇺 Hongrie",       "avg_home": 1.50, "avg_away": 1.20, "type": "national"},
-    "Liga I (Roumanie)":  {"pays": "🇷🇴 Roumanie",      "avg_home": 1.35, "avg_away": 1.10, "type": "national"},
+    # ============== EUROPE — SECONDAIRES ==============
+    "Süper Lig Autriche":     {"pays": "Autriche",           "avg_home": 1.60, "avg_away": 1.25, "type": "national"},
+    "Super League Grèce":     {"pays": "Grèce",              "avg_home": 1.35, "avg_away": 1.05, "type": "national"},
+    "Scottish Premiership":   {"pays": "Écosse",             "avg_home": 1.55, "avg_away": 1.25, "type": "national"},
+    "Allsvenskan":            {"pays": "Suède",              "avg_home": 1.55, "avg_away": 1.20, "type": "national"},
+    "Eliteserien":            {"pays": "Norvège",            "avg_home": 1.65, "avg_away": 1.30, "type": "national"},
+    "Superligaen":            {"pays": "Danemark",           "avg_home": 1.60, "avg_away": 1.30, "type": "national"},
+    "Veikkausliiga":          {"pays": "Finlande",           "avg_home": 1.40, "avg_away": 1.15, "type": "national"},
+    "Swiss Super League":     {"pays": "Suisse",             "avg_home": 1.65, "avg_away": 1.35, "type": "national"},
+    "Chypre D1":              {"pays": "Chypre",             "avg_home": 1.40, "avg_away": 1.10, "type": "national"},
+    "Ligat ha'Al":            {"pays": "Israël",             "avg_home": 1.40, "avg_away": 1.10, "type": "national"},
+    "Ekstraklasa":            {"pays": "Pologne",            "avg_home": 1.45, "avg_away": 1.15, "type": "national"},
+    "Fortuna Liga":           {"pays": "Tchéquie",           "avg_home": 1.55, "avg_away": 1.20, "type": "national"},
+    "Nemzeti Bajnoksag":      {"pays": "Hongrie",            "avg_home": 1.50, "avg_away": 1.20, "type": "national"},
+    "Liga I (Roumanie)":      {"pays": "Roumanie",           "avg_home": 1.35, "avg_away": 1.10, "type": "national"},
+    "Serbia SuperLiga":       {"pays": "Serbie",             "avg_home": 1.45, "avg_away": 1.15, "type": "national"},
+    "Croatie HNL":            {"pays": "Croatie",            "avg_home": 1.50, "avg_away": 1.20, "type": "national"},
 
     # ============== AMÉRIQUES ==============
-    "Liga MX":            {"pays": "🇲🇽 Mexique",       "avg_home": 1.45, "avg_away": 1.20, "type": "national"},
-    "Brasileirão":        {"pays": "🇧🇷 Brésil",        "avg_home": 1.30, "avg_away": 0.95, "type": "national"},
-    "Liga Profesional (ARG)": {"pays": "🇦🇷 Argentine", "avg_home": 1.20, "avg_away": 0.85, "type": "national"},
-    "MLS":                {"pays": "🇺🇸 USA",           "avg_home": 1.55, "avg_away": 1.25, "type": "national"},
-    "Primera A (Colombie)": {"pays": "🇨🇴 Colombie",    "avg_home": 1.25, "avg_away": 0.90, "type": "national"},
-    "Primera División (Chili)": {"pays": "🇨🇱 Chili",   "avg_home": 1.35, "avg_away": 1.00, "type": "national"},
-    "LigaPro (Équateur)": {"pays": "🇪🇨 Équateur",      "avg_home": 1.35, "avg_away": 1.00, "type": "national"},
+    "Liga MX":                {"pays": "Mexique",            "avg_home": 1.45, "avg_away": 1.20, "type": "national"},
+    "Brasileirão":            {"pays": "Brésil",             "avg_home": 1.30, "avg_away": 0.95, "type": "national"},
+    "Liga Profesional (ARG)": {"pays": "Argentine",          "avg_home": 1.20, "avg_away": 0.85, "type": "national"},
+    "MLS":                    {"pays": "USA",                "avg_home": 1.55, "avg_away": 1.25, "type": "national"},
+    "Primera A (Colombie)":   {"pays": "Colombie",           "avg_home": 1.25, "avg_away": 0.90, "type": "national"},
+    "Primera División (Chili)": {"pays": "Chili",            "avg_home": 1.35, "avg_away": 1.00, "type": "national"},
+    "LigaPro (Équateur)":     {"pays": "Équateur",           "avg_home": 1.35, "avg_away": 1.00, "type": "national"},
+    "Liga 1 (Pérou)":         {"pays": "Pérou",              "avg_home": 1.30, "avg_away": 0.95, "type": "national"},
 
     # ============== ASIE / MOYEN-ORIENT ==============
-    "Saudi Pro League":   {"pays": "🇸🇦 Arabie Saoudite", "avg_home": 1.70, "avg_away": 1.35, "type": "national"},
-    "UAE Pro League":     {"pays": "🇦🇪 Émirats",       "avg_home": 1.70, "avg_away": 1.40, "type": "national"},
-    "Qatar Stars League": {"pays": "🇶🇦 Qatar",         "avg_home": 1.65, "avg_away": 1.35, "type": "national"},
-    "J1 League":          {"pays": "🇯🇵 Japon",         "avg_home": 1.45, "avg_away": 1.20, "type": "national"},
-    "K League 1":         {"pays": "🇰🇷 Corée du Sud",  "avg_home": 1.40, "avg_away": 1.15, "type": "national"},
-    "Chinese Super League": {"pays": "🇨🇳 Chine",       "avg_home": 1.55, "avg_away": 1.25, "type": "national"},
+    "Saudi Pro League":       {"pays": "Arabie Saoudite",    "avg_home": 1.70, "avg_away": 1.35, "type": "national"},
+    "UAE Pro League":         {"pays": "Émirats",            "avg_home": 1.70, "avg_away": 1.40, "type": "national"},
+    "Qatar Stars League":     {"pays": "Qatar",              "avg_home": 1.65, "avg_away": 1.35, "type": "national"},
+    "J1 League":              {"pays": "Japon",              "avg_home": 1.45, "avg_away": 1.20, "type": "national"},
+    "K League 1":             {"pays": "Corée du Sud",       "avg_home": 1.40, "avg_away": 1.15, "type": "national"},
+    "Chinese Super League":   {"pays": "Chine",              "avg_home": 1.55, "avg_away": 1.25, "type": "national"},
 
     # ============== AFRIQUE ==============
-    "Ligue 1 (Maroc)":    {"pays": "🇲🇦 Maroc",         "avg_home": 1.25, "avg_away": 0.85, "type": "national"},
-    "Ligue 1 (Tunisie)":  {"pays": "🇹🇳 Tunisie",       "avg_home": 1.20, "avg_away": 0.80, "type": "national"},
-    "Egyptian Premier League": {"pays": "🇪🇬 Égypte",   "avg_home": 1.30, "avg_away": 0.90, "type": "national"},
-    "Ligue 1 (Algérie)":  {"pays": "🇩🇿 Algérie",       "avg_home": 1.20, "avg_away": 0.80, "type": "national"},
-    "Nigeria Premier League": {"pays": "🇳🇬 Nigeria",   "avg_home": 1.30, "avg_away": 0.75, "type": "national"},
-    "Linafoot (RDC)":     {"pays": "🇨🇩 RD Congo",      "avg_home": 1.20, "avg_away": 0.70, "type": "national"},
-    "CAF Champions League": {"pays": "🌍 CAF",          "avg_home": 1.35, "avg_away": 0.90, "type": "cup"},
+    "Ligue 1 (Maroc)":        {"pays": "Maroc",              "avg_home": 1.25, "avg_away": 0.85, "type": "national"},
+    "Ligue 1 (Tunisie)":      {"pays": "Tunisie",            "avg_home": 1.20, "avg_away": 0.80, "type": "national"},
+    "Egyptian Premier League": {"pays": "Égypte",            "avg_home": 1.30, "avg_away": 0.90, "type": "national"},
+    "Ligue 1 (Algérie)":      {"pays": "Algérie",            "avg_home": 1.20, "avg_away": 0.80, "type": "national"},
+    "Nigeria Premier League": {"pays": "Nigeria",            "avg_home": 1.30, "avg_away": 0.75, "type": "national"},
+    "Linafoot (RDC)":         {"pays": "RD Congo",           "avg_home": 1.20, "avg_away": 0.70, "type": "national"},
+    "CAF Champions League":   {"pays": "CAF",                "avg_home": 1.35, "avg_away": 0.90, "type": "cup"},
 
-    # ============== COMPÉTITIONS DE CLUBS ==============
-    "Champions League":   {"pays": "🏆 Europe",         "avg_home": 1.55, "avg_away": 1.25, "type": "cup"},
-    "Europa League":      {"pays": "🏆 Europe",         "avg_home": 1.55, "avg_away": 1.20, "type": "cup"},
-    "Conference League":  {"pays": "🏆 Europe",         "avg_home": 1.65, "avg_away": 1.30, "type": "cup"},
-    "Copa Libertadores":  {"pays": "🌎 CONMEBOL",       "avg_home": 1.45, "avg_away": 1.05, "type": "cup"},
+    # ============== COUPES DE CLUBS ==============
+    "Champions League":       {"pays": "Europe",             "avg_home": 1.55, "avg_away": 1.25, "type": "cup"},
+    "Europa League":          {"pays": "Europe",             "avg_home": 1.55, "avg_away": 1.20, "type": "cup"},
+    "Conference League":      {"pays": "Europe",             "avg_home": 1.65, "avg_away": 1.30, "type": "cup"},
+    "Copa Libertadores":      {"pays": "CONMEBOL",           "avg_home": 1.45, "avg_away": 1.05, "type": "cup"},
+    "Copa Sudamericana":      {"pays": "CONMEBOL",           "avg_home": 1.45, "avg_away": 1.05, "type": "cup"},
 
-    # ============== COMPÉTITIONS DE SÉLECTIONS ==============
-    "Coupe du Monde":     {"pays": "🌍 FIFA",           "avg_home": 1.35, "avg_away": 1.10, "type": "national_team"},
-    "Qualifs CdM":        {"pays": "🌍 FIFA",           "avg_home": 1.50, "avg_away": 1.15, "type": "national_team"},
-    "Euro":               {"pays": "🇪🇺 UEFA",          "avg_home": 1.25, "avg_away": 1.05, "type": "national_team"},
-    "CAN":                {"pays": "🌍 CAF",            "avg_home": 1.20, "avg_away": 0.95, "type": "national_team"},
-    "Copa América":       {"pays": "🌎 CONMEBOL",       "avg_home": 1.25, "avg_away": 1.00, "type": "national_team"},
-    "Ligue des Nations":  {"pays": "🇪🇺 UEFA",          "avg_home": 1.35, "avg_away": 1.15, "type": "national_team"},
-    "Qualifs Euro":       {"pays": "🇪🇺 UEFA",          "avg_home": 1.45, "avg_away": 1.10, "type": "national_team"},
-    "Qualifs CAN":        {"pays": "🌍 CAF",            "avg_home": 1.35, "avg_away": 1.00, "type": "national_team"},
-    "Gold Cup":           {"pays": "🌎 CONCACAF",       "avg_home": 1.40, "avg_away": 1.10, "type": "national_team"},
-    "Asian Cup":          {"pays": "🌏 AFC",            "avg_home": 1.35, "avg_away": 1.10, "type": "national_team"},
+    # ============== SÉLECTIONS ==============
+    "Coupe du Monde":         {"pays": "FIFA",               "avg_home": 1.35, "avg_away": 1.10, "type": "national_team"},
+    "Qualifs CdM":            {"pays": "FIFA",               "avg_home": 1.50, "avg_away": 1.15, "type": "national_team"},
+    "Euro":                   {"pays": "UEFA",               "avg_home": 1.25, "avg_away": 1.05, "type": "national_team"},
+    "Qualifs Euro":           {"pays": "UEFA",               "avg_home": 1.45, "avg_away": 1.10, "type": "national_team"},
+    "CAN":                    {"pays": "CAF",                "avg_home": 1.20, "avg_away": 0.95, "type": "national_team"},
+    "Qualifs CAN":            {"pays": "CAF",                "avg_home": 1.35, "avg_away": 1.00, "type": "national_team"},
+    "Copa América":           {"pays": "CONMEBOL",           "avg_home": 1.25, "avg_away": 1.00, "type": "national_team"},
+    "Ligue des Nations":      {"pays": "UEFA",               "avg_home": 1.35, "avg_away": 1.15, "type": "national_team"},
+    "Gold Cup":               {"pays": "CONCACAF",           "avg_home": 1.40, "avg_away": 1.10, "type": "national_team"},
+    "Asian Cup":              {"pays": "AFC",                "avg_home": 1.35, "avg_away": 1.10, "type": "national_team"},
 }
 
 
