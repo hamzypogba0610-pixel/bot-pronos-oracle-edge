@@ -1,8 +1,7 @@
 """
 analyse.py — Couche d'intégration.
-Pipeline complet :
-18 marchés + scores + combinés + CLV + Meta-Brain + ELO + Shin + Cohérence.
-Recalcule EV + Master Score APRÈS la correction de cohérence.
+18 marchés + scores + combinés + CLV + Meta-Brain + ELO + Shin + Cohérence
++ contrôle de plausibilité des cotes.
 """
 
 import math
@@ -20,6 +19,7 @@ from score_matrix import (
 )
 from combines import generer_combines
 from coherence import appliquer_coherence
+import odds_check
 
 
 MARCHES_V1 = [
@@ -68,22 +68,16 @@ def construire_groupes_cotes(market, cotes_map):
 
 
 def recalculer_apres_coherence(r):
-    """
-    Recalcule EV, facteur value, Master Score, verdict, accepte
-    APRÈS que la couche cohérence ait corrigé p_calibree.
-    """
     if "p_calibree" not in r or "cote" not in r:
         return r
 
     p_cal = r["p_calibree"]
     cote = r["cote"]
 
-    # EV
     ev = p_cal * cote - 1.0 if cote > 0 else 0.0
     r["ev"] = ev
     r["value_factor"] = facteur_value(ev)
 
-    # Edge Shin recalculé sur la nouvelle proba (si cotes groupe dispo)
     p_imp_shin = r.get("proba_implicite_shin")
     if p_imp_shin is not None:
         r["edge_shin"] = p_cal - p_imp_shin
@@ -91,19 +85,18 @@ def recalculer_apres_coherence(r):
     if p_imp_naive is not None:
         r["edge_naif"] = p_cal - p_imp_naive
 
-    # Master Score
     rob = r.get("rob", 1.0)
     q = r.get("quality", 100.0)
     chaos = r.get("chaos", 0.0)
     clv_factor = r.get("clv_factor", 1.0)
     meta_factor = r.get("meta_factor", 1.0)
     vf = r["value_factor"]
+
     ms = 100 * p_cal * rob * (q / 100.0) * vf * (1 - chaos) * clv_factor * meta_factor
     ms = max(0.0, min(100.0, ms))
     r["master_score"] = ms
     r["verdict"] = classer_score(ms)
 
-    # Redécision NO BET
     piege = r.get("piege", False)
     meta_score = r.get("meta_data", {}).get("score", 0.0)
     accepte, raisons = no_bet_gate(
@@ -133,12 +126,9 @@ def analyser_scores_exacts(variables, cotes_cs):
         edge = p - proba_implicite
         ev = p * cote - 1
         resultats.append({
-            "score": score,
-            "proba": p,
-            "cote": cote,
+            "score": score, "proba": p, "cote": cote,
             "proba_implicite": proba_implicite,
-            "edge": edge,
-            "ev": ev,
+            "edge": edge, "ev": ev,
         })
 
     return {
@@ -176,6 +166,9 @@ def analyser_match(home_form, away_form, h2h,
 
     cotes_ouv = cotes_ouverture_map or {}
 
+    # === Contrôle des cotes ===
+    warnings_cotes = odds_check.verifier_toutes(cotes_map)
+
     # === 1. Analyse brute par marché ===
     resultats = []
     for market in MARCHES_V1:
@@ -208,7 +201,7 @@ def analyser_match(home_form, away_form, h2h,
     except Exception as e:
         print(f"Erreur coherence : {e}")
 
-    # === 3. Recalcul EV / Master Score après cohérence ===
+    # === 3. Recalcul EV / Master après cohérence ===
     resultats = [recalculer_apres_coherence(r) for r in resultats]
 
     # === 4. Meilleur pari ===
@@ -243,4 +236,5 @@ def analyser_match(home_form, away_form, h2h,
         "meilleur": meilleur,
         "scores_exacts": scores_exacts,
         "combines": combines,
+        "warnings_cotes": warnings_cotes,
 }
