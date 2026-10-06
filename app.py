@@ -1,6 +1,6 @@
 """
 app.py — Interface Streamlit Oracle Edge.
-Formulaire 8 pages + analyse 12 marchés + suivi des résultats.
+Formulaire 8 pages + analyse 18 marchés + suivi des résultats.
 """
 
 import json
@@ -173,9 +173,9 @@ def hero():
     <div class="hero">
         <div>
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
-            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield — 12 marchés</p>
+            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield — 18 marchés</p>
         </div>
-        <div class="hero-badge">v1.2</div>
+        <div class="hero-badge">v1.3</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -460,11 +460,13 @@ def page_7():
                 f'{st.session_state.league}</p></div>',
                 unsafe_allow_html=True)
 
-    # --- 12 marchés envoyés à l'analyse ---
+    # --- 18 marchés envoyés à l'analyse ---
     cotes_map = {
+        # 1X2
         "1": st.session_state.cotes_1x2["H"],
         "X": st.session_state.cotes_1x2["D"],
         "2": st.session_state.cotes_1x2["A"],
+        # Over / Under
         "O0.5": st.session_state.cotes_ou["0.5"]["over"],
         "U0.5": st.session_state.cotes_ou["0.5"]["under"],
         "O1.5": st.session_state.cotes_ou["1.5"]["over"],
@@ -473,6 +475,14 @@ def page_7():
         "U2.5": st.session_state.cotes_ou["2.5"]["under"],
         "O3.5": st.session_state.cotes_ou["3.5"]["over"],
         "U3.5": st.session_state.cotes_ou["3.5"]["under"],
+        # Handicaps asiatiques
+        "AH-0.5": st.session_state.cotes_ah["-0.5"]["home"],
+        "AH+0.5": st.session_state.cotes_ah["-0.5"]["away"],
+        "AH-1.5": st.session_state.cotes_ah["-1.5"]["home"],
+        "AH+1.5": st.session_state.cotes_ah["-1.5"]["away"],
+        "AH-2.5": st.session_state.cotes_ah["-2.5"]["home"],
+        "AH+2.5": st.session_state.cotes_ah["-2.5"]["away"],
+        # BTTS
         "BTTS": st.session_state.cotes_btts["oui"],
     }
 
@@ -507,7 +517,7 @@ def page_7():
         with cols[i % 4]:
             st.metric(k, f"{v:.2f}")
 
-    st.markdown("### 🎯 Analyse multi-marchés (12 marchés)")
+    st.markdown("### 🎯 Analyse multi-marchés (18 marchés)")
     import pandas as pd
     df = pd.DataFrame([{
         "Marché": r.get("market", "-"),
