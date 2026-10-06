@@ -1,6 +1,6 @@
 """
 app.py — Interface Streamlit Oracle Edge.
-Formulaire 8 pages + 18 marchés + scores exacts + combinés + CLV + suivi.
+8 pages + 18 marchés + scores + combinés + CLV + Meta-Brain.
 """
 
 import json
@@ -11,6 +11,7 @@ import streamlit as st
 from config import LEAGUES
 from analyse import analyser_match
 import calibration as calib
+import metabrain
 import drcx
 
 
@@ -125,6 +126,13 @@ html, body, [class*="css"], .stApp {
     color: #FCA5A5;
     font-size: 13px;
 }
+.regime-box {
+    background: linear-gradient(135deg, rgba(245,158,11,0.10), rgba(34,197,94,0.05));
+    border: 1px solid rgba(245,158,11,0.30);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+}
 .verdict-green { color: #22C55E; font-weight: 700; }
 .verdict-yellow { color: #F59E0B; font-weight: 700; }
 .verdict-red { color: #EF4444; font-weight: 700; }
@@ -157,7 +165,6 @@ def init_state():
                        "tirs": 0, "tirs_cadres": 0, "possession": 50} for _ in range(5)],
         "abs_home": 0.0, "abs_away": 0.0,
         "mot_home": 0.5, "mot_away": 0.5,
-        # Cotes de fermeture
         "cotes_1x2": {"H": 2.00, "D": 3.50, "A": 3.50},
         "cotes_ou": {str(l): {"over": 1.90, "under": 1.90} for l in OU_LIGNES},
         "cotes_btts": {"oui": 1.85, "non": 1.85},
@@ -166,7 +173,6 @@ def init_state():
                      "-2.5": {"home": 6.00, "away": 1.12}},
         "cotes_cs": [("2-1", 7.50), ("1-1", 6.50), ("2-0", 9.00),
                      ("1-0", 8.50), ("1-2", 8.00)],
-        # Cotes d'ouverture (0 = non renseigné)
         "clv_actif": False,
         "cotes_1x2_ouv": {"H": 0.0, "D": 0.0, "A": 0.0},
         "cotes_ou_ouv": {str(l): {"over": 0.0, "under": 0.0} for l in OU_LIGNES},
@@ -191,9 +197,9 @@ def hero():
     <div class="hero">
         <div>
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
-            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield · CLV — 18 marchés + scores + combinés</p>
+            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain</p>
         </div>
-        <div class="hero-badge">v1.6</div>
+        <div class="hero-badge">v1.7</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -381,72 +387,57 @@ def page_5():
 
 def page_6():
     st.markdown('<div class="card"><p class="card-title">Cotes bookmaker</p>'
-                '<p class="card-sub">Cotes de fermeture (H-1) obligatoires. '
-                'Cotes d\'ouverture optionnelles pour activer le CLV.</p></div>',
+                '<p class="card-sub">Cotes de fermeture obligatoires. '
+                'Cotes d\'ouverture optionnelles pour le CLV.</p></div>',
                 unsafe_allow_html=True)
 
-    # --- Toggle CLV ---
     st.session_state.clv_actif = st.toggle(
         "🔓 Activer le calcul du CLV (saisir les cotes d'ouverture)",
         value=st.session_state.clv_actif,
     )
     if st.session_state.clv_actif:
         st.caption("📘 Le CLV mesure le mouvement du marché entre l'ouverture "
-                   "et la fermeture. Un CLV positif est un **signal fort** que "
-                   "le marché valide notre analyse.")
+                   "et la fermeture. Un CLV positif est un signal fort.")
 
     # ============================================================
     # 1X2
     # ============================================================
     st.markdown("### **1X2**")
     if st.session_state.clv_actif:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.markdown("**Sélection**")
-        c2.markdown("**Ouverture**")
-        c3.markdown("**Fermeture**")
-    else:
-        c1, c2, c3 = st.columns(3)
-
-    with (c1 if st.session_state.clv_actif else c1):
-        pass
-
-    if st.session_state.clv_actif:
-        # Version avec ouverture
-        for label, key_ouv, key_fer, label_full in [
-            ("🏠 Dom", "H", "H", st.session_state.home_team or "Dom"),
-            ("Nul", "D", "D", "Nul"),
-            ("✈️ Ext", "A", "A", st.session_state.away_team or "Ext"),
-        ]:
+        for label, key in [("🏠 Dom", "H"), ("Nul", "D"), ("✈️ Ext", "A")]:
             c1, c2, c3 = st.columns(3)
             c1.markdown(f"**{label}**")
             with c2:
-                st.session_state.cotes_1x2_ouv[key_ouv] = st.number_input(
+                st.session_state.cotes_1x2_ouv[key] = st.number_input(
                     f"Ouv. {label}", min_value=0.0,
-                    value=float(st.session_state.cotes_1x2_ouv[key_ouv]),
-                    step=0.01, key=f"c_ouv_1x2_{key_ouv}",
+                    value=float(st.session_state.cotes_1x2_ouv[key]),
+                    step=0.01, key=f"c_ouv_1x2_{key}",
                     help="0 = non renseigné",
                 )
             with c3:
-                st.session_state.cotes_1x2[key_fer] = st.number_input(
+                st.session_state.cotes_1x2[key] = st.number_input(
                     f"Ferm. {label}", min_value=1.01,
-                    value=float(st.session_state.cotes_1x2[key_fer]),
-                    step=0.01, key=f"c_fer_1x2_{key_fer}",
+                    value=float(st.session_state.cotes_1x2[key]),
+                    step=0.01, key=f"c_fer_1x2_{key}",
                 )
     else:
         c1, c2, c3 = st.columns(3)
         with c1:
             st.session_state.cotes_1x2["H"] = st.number_input(
-                "🏠 Dom", min_value=1.01, value=float(st.session_state.cotes_1x2["H"]),
+                "🏠 Dom", min_value=1.01,
+                value=float(st.session_state.cotes_1x2["H"]),
                 step=0.01, key="c_H",
             )
         with c2:
             st.session_state.cotes_1x2["D"] = st.number_input(
-                "Nul", min_value=1.01, value=float(st.session_state.cotes_1x2["D"]),
+                "Nul", min_value=1.01,
+                value=float(st.session_state.cotes_1x2["D"]),
                 step=0.01, key="c_D",
             )
         with c3:
             st.session_state.cotes_1x2["A"] = st.number_input(
-                "✈️ Ext", min_value=1.01, value=float(st.session_state.cotes_1x2["A"]),
+                "✈️ Ext", min_value=1.01,
+                value=float(st.session_state.cotes_1x2["A"]),
                 step=0.01, key="c_A",
             )
 
@@ -457,7 +448,7 @@ def page_6():
     for l in OU_LIGNES:
         st.markdown(f"**Ligne {l}**")
         if st.session_state.clv_actif:
-            c1, c2, c3 = st.columns(3)
+            c1, c2 = st.columns(2)
             with c1:
                 st.session_state.cotes_ou_ouv[str(l)]["over"] = st.number_input(
                     "Ouv. Over", min_value=0.0,
@@ -470,7 +461,7 @@ def page_6():
                     value=float(st.session_state.cotes_ou[str(l)]["over"]),
                     step=0.01, key=f"c_fer_ou_o_{l}",
                 )
-            c1, c2, c3 = st.columns(3)
+            c1, c2 = st.columns(2)
             with c1:
                 st.session_state.cotes_ou_ouv[str(l)]["under"] = st.number_input(
                     "Ouv. Under", min_value=0.0,
@@ -527,12 +518,14 @@ def page_6():
         c1, c2 = st.columns(2)
         with c1:
             st.session_state.cotes_btts["oui"] = st.number_input(
-                "Oui", min_value=1.01, value=float(st.session_state.cotes_btts["oui"]),
+                "Oui", min_value=1.01,
+                value=float(st.session_state.cotes_btts["oui"]),
                 step=0.01, key="c_btts_oui",
             )
         with c2:
             st.session_state.cotes_btts["non"] = st.number_input(
-                "Non", min_value=1.01, value=float(st.session_state.cotes_btts["non"]),
+                "Non", min_value=1.01,
+                value=float(st.session_state.cotes_btts["non"]),
                 step=0.01, key="c_btts_non",
             )
 
@@ -543,7 +536,7 @@ def page_6():
     for ligne in ["-0.5", "-1.5", "-2.5"]:
         st.markdown(f"**Ligne {ligne}**")
         if st.session_state.clv_actif:
-            c1, c2, c3 = st.columns(3)
+            c1, c2 = st.columns(2)
             with c1:
                 st.session_state.cotes_ah_ouv[ligne]["home"] = st.number_input(
                     "Ouv. Home", min_value=0.0,
@@ -556,7 +549,7 @@ def page_6():
                     value=float(st.session_state.cotes_ah[ligne]["home"]),
                     step=0.01, key=f"c_fer_ah_h_{ligne}",
                 )
-            c1, c2, c3 = st.columns(3)
+            c1, c2 = st.columns(2)
             with c1:
                 st.session_state.cotes_ah_ouv[ligne]["away"] = st.number_input(
                     "Ouv. Away", min_value=0.0,
@@ -617,7 +610,7 @@ def page_7():
                 f'{st.session_state.league}</p></div>',
                 unsafe_allow_html=True)
 
-    # --- 18 marchés : cotes de fermeture ---
+    # --- Cotes de fermeture ---
     cotes_map = {
         "1": st.session_state.cotes_1x2["H"],
         "X": st.session_state.cotes_1x2["D"],
@@ -639,7 +632,7 @@ def page_7():
         "BTTS": st.session_state.cotes_btts["oui"],
     }
 
-    # --- 18 marchés : cotes d'ouverture (optionnel) ---
+    # --- Cotes d'ouverture ---
     cotes_ouv_map = None
     if st.session_state.clv_actif:
         cotes_ouv_map = {
@@ -674,6 +667,7 @@ def page_7():
             cotes_map=cotes_map,
             cotes_cs=st.session_state.cotes_cs,
             cotes_ouverture_map=cotes_ouv_map,
+            ligue=st.session_state.league,
         )
     except Exception as e:
         st.error(f"Erreur lors de l'analyse : {e}")
@@ -685,6 +679,24 @@ def page_7():
     meilleur = resultat["meilleur"]
     scores_exacts = resultat.get("scores_exacts")
     combines = resultat.get("combines")
+    regime = resultat.get("regime", "?")
+    ligue = resultat.get("ligue", "?")
+
+    # --- Bandeau régime + ligue ---
+    regime_labels = {
+        "A": "🅰️ Match fermé",
+        "B": "🅱️ Match offensif",
+        "C": "🅲 Favori dominant",
+        "D": "🅳 Match équilibré",
+        "E": "🅴 Forte incertitude",
+        "?": "❓ Indéterminé",
+    }
+    st.markdown(f'<div class="regime-box">'
+                f'<b style="color:#F8FAFC;">🎭 Régime détecté :</b> '
+                f'<b style="color:#F59E0B;">{regime_labels.get(regime, regime)}</b>'
+                f' &nbsp;·&nbsp; <b style="color:#F8FAFC;">🏆 Ligue :</b> '
+                f'<b style="color:#22C55E;">{ligue}</b>'
+                f'</div>', unsafe_allow_html=True)
 
     st.markdown("### 📊 Qualité des données")
     c1, c2, c3 = st.columns(3)
@@ -737,7 +749,7 @@ def page_7():
             st.dataframe(pd.DataFrame(top_rows),
                          use_container_width=True, hide_index=True)
 
-    # --- Analyse multi-marchés (avec CLV) ---
+    # --- Analyse multi-marchés (CLV + Meta) ---
     st.markdown("### 🎯 Analyse multi-marchés (18 marchés)")
     import pandas as pd
 
@@ -754,10 +766,16 @@ def page_7():
             clv_data = r.get("clv_data")
             if clv_data:
                 row["CLV"] = f"{clv_data['clv']:+.1%}"
-                row["Mouvement"] = clv_data["verdict"]
             else:
                 row["CLV"] = "—"
-                row["Mouvement"] = "—"
+        # Meta
+        meta_data = r.get("meta_data", {})
+        if meta_data:
+            ms_val = meta_data.get("score", 0)
+            n_ctx = meta_data.get("n", 0)
+            row["Meta"] = f"{ms_val:+.2f} (n={n_ctx})"
+        else:
+            row["Meta"] = "—"
         row["Chaos"] = f"{r.get('chaos', 0):.2f}" if "chaos" in r else "—"
         row["Score"] = f"{r.get('master_score', 0):.1f}" if "master_score" in r else "—"
         row["Verdict"] = r.get("verdict", "—")
@@ -813,12 +831,15 @@ def page_7():
     # --- Meilleur pari ---
     if meilleur:
         st.markdown("### 🏆 Meilleur pari (marché simple)")
-        clv_html = ""
+        extras = []
         if clv_actif and meilleur.get("clv_data"):
             clv_val = meilleur["clv_data"]["clv"]
-            clv_verdict = meilleur["clv_data"]["verdict"]
-            clv_html = (f' · CLV : <b style="color:#F59E0B;">{clv_val:+.1%}</b> '
-                        f'({clv_verdict})')
+            extras.append(f'CLV : <b style="color:#F59E0B;">{clv_val:+.1%}</b>')
+        meta_d = meilleur.get("meta_data", {})
+        if meta_d and meta_d.get("n", 0) > 0:
+            extras.append(f'Meta : <b style="color:#22C55E;">{meta_d["score"]:+.2f}</b>')
+        extras_html = (" · " + " · ".join(extras)) if extras else ""
+
         st.markdown(f"""
         <div class="result-card">
             <p style="font-size:18px;font-weight:700;color:#F8FAFC;margin:0;">
@@ -828,7 +849,7 @@ def page_7():
                 P calibrée : <b style="color:#22C55E;">{meilleur['p_calibree']:.1%}</b> ·
                 ROB : <b style="color:#22C55E;">{meilleur['rob']:.2f}</b> ·
                 EV : <b style="color:#22C55E;">{meilleur['ev']:+.1%}</b> ·
-                Chaos : <b style="color:#F59E0B;">{meilleur['chaos']:.2f}</b>{clv_html}
+                Chaos : <b style="color:#F59E0B;">{meilleur['chaos']:.2f}</b>{extras_html}
             </p>
             <p style="margin-top:8px;">
                 <span class="verdict-green">{meilleur['verdict']}</span>
@@ -846,24 +867,27 @@ def page_7():
                         market=meilleur["market"],
                         resultat_oracle=meilleur,
                         cote=meilleur["cote"],
+                        regime=regime,
+                        ligue=ligue,
                     )
                     st.success(f"✅ Pari #{pari_id} enregistré ! "
-                               f"Va sur la page **Résultats** pour le suivre.")
+                               f"Contexte : {regime} / {ligue}.")
                 except Exception as e:
                     st.error(f"Erreur enregistrement : {e}")
         with c2:
-            st.caption("Enregistre ce pari pour suivre son résultat réel "
-                       "et améliorer la calibration du bot.")
+            st.caption("Enregistre ce pari pour suivre son résultat réel, "
+                       "améliorer la calibration et alimenter le Meta-Brain.")
     else:
         st.error("🔴 NO BET — Aucun marché ne passe les filtres.")
 
     st.markdown("### 💾 Export")
     rapport = {
         "match": {
-            "league": st.session_state.league,
+            "league": ligue,
             "date": str(st.session_state.match_date),
             "home": home, "away": away,
         },
+        "regime": regime,
         "qualite": qualite,
         "variables": variables,
         "resultats": resultats,
@@ -881,12 +905,12 @@ def page_7():
 
 
 # ============================================================
-# PAGE 8 — RÉSULTATS
+# PAGE 8 — RÉSULTATS + META-BRAIN
 # ============================================================
 def page_8():
     st.markdown('<div class="card"><p class="card-title">Suivi des paris</p>'
                 '<p class="card-sub">Marque chaque pari comme Gagné ou Perdu. '
-                'Le bot apprend automatiquement.</p></div>',
+                'Le bot apprend automatiquement + alimente le Meta-Brain.</p></div>',
                 unsafe_allow_html=True)
 
     pending = calib.paris_en_attente()
@@ -899,11 +923,14 @@ def page_8():
             with st.container():
                 c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
                 with c1:
+                    ctx = f" · {p.get('regime', '?')} / {p.get('ligue', '?')}"
                     st.markdown(
                         f"**#{p['id']} — {p['market']}**  \n"
                         f"Cote **{p['cote']:.2f}** · "
                         f"P {p['p_calibree']:.1%} · "
                         f"Score {p['score_attribue']:.1f}"
+                        f"<span style='color:#94A3B8;font-size:12px;'>{ctx}</span>",
+                        unsafe_allow_html=True,
                     )
                 with c2:
                     if st.button("✅ Gagné", key=f"w_{p['id']}",
@@ -951,6 +978,8 @@ def page_8():
             hist_rows = [{
                 "ID": p["id"],
                 "Marché": p["market"],
+                "Régime": p.get("regime", "?"),
+                "Ligue": p.get("ligue", "?"),
                 "Cote": f"{p['cote']:.2f}",
                 "P": f"{p['p_calibree']:.1%}",
                 "Résultat": "✅" if p["resultat"] else "❌",
@@ -961,12 +990,47 @@ def page_8():
         st.caption("Aucun pari résolu pour l'instant. "
                    "Les stats apparaîtront après tes premiers résultats.")
 
+    # --- META-BRAIN : Performance par contexte ---
+    st.markdown("### 🧠 Meta-Brain — Performance par contexte")
+    st.caption("Le bot apprend dans quels contextes il est fort ou faible.")
+
+    contextes = metabrain.stats_contexte()
+    if not contextes:
+        st.info("📭 Aucun contexte enregistré pour l'instant. "
+                "Enregistre et résous des paris pour alimenter le Meta-Brain.")
+    else:
+        import pandas as pd
+        ctx_rows = []
+        for c in contextes:
+            n = c["n"]
+            taux = c["taux"]
+            # Calcul MetaScore pour l'affichage
+            meta = metabrain.calculer_metascore(c["market"], c["regime"], c["ligue"])
+            ctx_rows.append({
+                "Marché": c["market"],
+                "Régime": c["regime"],
+                "Ligue": c["ligue"],
+                "n": n,
+                "Taux": f"{taux:.0%}",
+                "MetaScore": f"{meta['score']:+.2f}",
+                "Verdict": meta["verdict"],
+            })
+        st.dataframe(pd.DataFrame(ctx_rows),
+                     use_container_width=True, hide_index=True)
+
     with st.expander("⚠️ Zone dangereuse"):
-        st.caption("Efface toute la calibration et l'historique.")
-        if st.button("🗑️ Réinitialiser la calibration", type="secondary"):
-            calib.reinitialiser()
-            st.success("Calibration réinitialisée.")
-            st.rerun()
+        st.caption("Efface toute la calibration, l'historique et le Meta-Brain.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🗑️ Réinitialiser la calibration"):
+                calib.reinitialiser()
+                st.success("Calibration réinitialisée.")
+                st.rerun()
+        with c2:
+            if st.button("🗑️ Réinitialiser le Meta-Brain"):
+                metabrain.reinitialiser()
+                st.success("Meta-Brain réinitialisé.")
+                st.rerun()
 
 
 # ============================================================
