@@ -1,7 +1,6 @@
 """
-app.py — Interface Streamlit Oracle Edge v2.4.
-DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient.
-Détection auto de ligue + H2H lieu + contrôle cotes.
+app.py — Interface Streamlit Oracle Edge v2.6.
+DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient · Convergence.
 """
 
 import json
@@ -120,6 +119,11 @@ html, body, [class*="css"], .stApp {
     border: 1px solid rgba(245,158,11,0.30);
     border-radius: 12px; padding: 14px 18px; margin-bottom: 14px;
 }
+.conv-box {
+    background: linear-gradient(135deg, rgba(139,92,246,0.10), rgba(59,130,246,0.05));
+    border: 1px solid rgba(139,92,246,0.30);
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 14px;
+}
 .verdict-green { color: #22C55E; font-weight: 700; }
 .verdict-yellow { color: #F59E0B; font-weight: 700; }
 .verdict-red { color: #EF4444; font-weight: 700; }
@@ -180,9 +184,9 @@ def hero():
     <div class="hero">
         <div>
             <p class="hero-title">⚽ Oracle <span>Edge</span></p>
-            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient</p>
+            <p class="hero-sub">DRC-X · MGE-R · Oracle Shield · CLV · Meta-Brain · ELO · Shin · Gradient · Convergence</p>
         </div>
-        <div class="hero-badge">v2.4</div>
+        <div class="hero-badge">v2.6</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -701,7 +705,7 @@ def page_7():
     ligue = resultat.get("ligue", "?")
     warnings_cotes = resultat.get("warnings_cotes", [])
 
-    # --- Warnings cotes suspectes ---
+    # --- Warnings cotes ---
     if warnings_cotes:
         st.markdown("### ⚠️ Cotes suspectes détectées")
         for w in warnings_cotes:
@@ -709,6 +713,7 @@ def page_7():
                         f'<b>{w["market"]}</b> — {w["message"]}'
                         f'</div>', unsafe_allow_html=True)
 
+    # --- Bandeau régime + ligue + ELO ---
     regime_labels = {
         "A": "🅰️ Match fermé", "B": "🅱️ Match offensif",
         "C": "🅲 Favori dominant", "D": "🅳 Match équilibré",
@@ -723,6 +728,34 @@ def page_7():
                 f'<b style="color:#22C55E;">{variables.get("ELO", 0.5):.2f}</b>'
                 f'</div>', unsafe_allow_html=True)
 
+    # --- Convergence globale (moyenne sur marchés disponibles) ---
+    convs = [r.get("convergence") for r in resultats
+             if isinstance(r.get("convergence"), dict)]
+    if convs:
+        c_moy = sum(c["convergence"] for c in convs) / len(convs)
+        f_moy = sum(c["failure"] for c in convs) / len(convs)
+        conf_moy = sum(c["confiance"] for c in convs) / len(convs)
+        n_mod_moy = sum(c["n_modeles"] for c in convs) / len(convs)
+
+        if c_moy >= 0.75:
+            c_txt = "🟢 FORTE"
+        elif c_moy >= 0.50:
+            c_txt = "🟡 MOYENNE"
+        else:
+            c_txt = "🔴 FAIBLE"
+
+        st.markdown(f'<div class="conv-box">'
+                    f'<b style="color:#F8FAFC;">🔮 Convergence des modèles :</b> '
+                    f'<b style="color:#A78BFA;">{c_txt}</b> '
+                    f'({c_moy * 100:.0f}/100)'
+                    f' &nbsp;·&nbsp; <b style="color:#F8FAFC;">Confiance globale :</b> '
+                    f'<b style="color:#22C55E;">{conf_moy * 100:.0f}/100</b>'
+                    f' &nbsp;·&nbsp; <b style="color:#F8FAFC;">Risque rupture :</b> '
+                    f'<b style="color:#F59E0B;">{f_moy * 100:.0f}/100</b>'
+                    f' &nbsp;·&nbsp; <b style="color:#F8FAFC;">Modèles actifs :</b> '
+                    f'<b style="color:#94A3B8;">{n_mod_moy:.1f}/4</b>'
+                    f'</div>', unsafe_allow_html=True)
+
     st.markdown("### 📊 Qualité des données")
     c1, c2, c3 = st.columns(3)
     c1.metric("Volume", f"{qualite['volume']:.0%}")
@@ -735,6 +768,7 @@ def page_7():
         with cols[i % 4]:
             st.metric(k, f"{v:.2f}")
 
+    # --- Scores exacts ---
     if scores_exacts and "scores_saisis" in scores_exacts:
         st.markdown("### 🎲 Scores exacts")
         c1, c2 = st.columns(2)
@@ -765,6 +799,7 @@ def page_7():
             st.dataframe(pd.DataFrame(top_rows),
                          use_container_width=True, hide_index=True)
 
+    # --- Tableau des 18 marchés ---
     st.markdown("### 🎯 Analyse multi-marchés (18 marchés)")
     import pandas as pd
 
@@ -774,6 +809,9 @@ def page_7():
         row = {
             "Marché": r.get("market", "-"),
             "P_CAL": f"{r.get('p_calibree', 0):.1%}" if "p_calibree" in r else "—",
+            "P_Fusion": f"{r.get('P_fusion', 0):.1%}" if r.get("P_fusion") is not None else "—",
+            "P_Finale": f"{r.get('P_finale', 0):.1%}" if r.get("P_finale") is not None else "—",
+            "Convergence": f"{r.get('convergence', {}).get('convergence', 0):.2f}" if isinstance(r.get("convergence"), dict) else "—",
             "ROB": f"{r.get('rob', 0):.2f}" if "rob" in r else "—",
             "EV": f"{r.get('ev', 0):+.1%}" if "ev" in r else "—",
         }
@@ -795,6 +833,28 @@ def page_7():
     st.dataframe(pd.DataFrame(rows),
                  use_container_width=True, hide_index=True)
 
+    # --- Détail convergence pour le meilleur pari ---
+    if meilleur and isinstance(meilleur.get("convergence"), dict):
+        conv = meilleur["convergence"]
+        modeles = conv.get("modeles", {})
+        if modeles:
+            st.markdown("### 🔮 Détail Convergence — Meilleur pari")
+            m_rows = []
+            for nom, p in modeles.items():
+                p_txt = f"{p:.1%}" if p is not None else "—"
+                m_rows.append({"Modèle": nom, "Probabilité": p_txt})
+            m_rows.append({"Modèle": "🔷 Fusion (Log Pool)",
+                           "Probabilité": f"{conv['P_fusion']:.1%}" if conv.get('P_fusion') is not None else "—"})
+            m_rows.append({"Modèle": "🔶 Finale (Confidence Gov.)",
+                           "Probabilité": f"{conv['P_finale']:.1%}" if conv.get('P_finale') is not None else "—"})
+            st.dataframe(pd.DataFrame(m_rows),
+                         use_container_width=True, hide_index=True)
+            st.caption(f"Convergence : {conv['convergence'] * 100:.0f}/100 · "
+                       f"Confiance : {conv['confiance'] * 100:.0f}/100 · "
+                       f"Risque rupture : {conv['failure'] * 100:.0f}/100 · "
+                       f"Modèles actifs : {conv['n_modeles']}/4")
+
+    # --- Alertes pièges ---
     pieges = [r for r in resultats if r.get("piege")]
     if pieges:
         st.markdown("### 🚨 Alertes pièges")
@@ -804,6 +864,7 @@ def page_7():
                         f'<b>{p["market"]}</b> — {raison}'
                         f'</div>', unsafe_allow_html=True)
 
+    # --- Combinés ---
     if combines and isinstance(combines, list) and combines:
         st.markdown("### 🔗 Meilleurs combinés (2 marchés)")
         com_rows = []
@@ -830,6 +891,7 @@ def page_7():
         st.dataframe(pd.DataFrame(com_rows),
                      use_container_width=True, hide_index=True)
 
+    # --- Meilleur pari ---
     if meilleur:
         st.markdown("### 🏆 Meilleur pari")
         extras = []
@@ -838,6 +900,10 @@ def page_7():
             extras.append(f'CLV : <b style="color:#F59E0B;">{clv_val:+.1%}</b>')
         if "edge_shin" in meilleur:
             extras.append(f'Edge Shin : <b style="color:#22C55E;">{meilleur["edge_shin"]:+.1%}</b>')
+        if meilleur.get("P_finale") is not None:
+            extras.append(f'P_Finale : <b style="color:#A78BFA;">{meilleur["P_finale"]:.1%}</b>')
+        if meilleur.get("confiance") is not None:
+            extras.append(f'Confiance : <b style="color:#22C55E;">{meilleur["confiance"] * 100:.0f}/100</b>')
         meta_d = meilleur.get("meta_data", {})
         if meta_d and meta_d.get("n", 0) > 0:
             extras.append(f'Meta : <b style="color:#22C55E;">{meta_d["score"]:+.2f}</b>')
@@ -884,6 +950,7 @@ def page_7():
     else:
         st.error("🔴 NO BET — Aucun marché ne passe les filtres.")
 
+    # --- Export JSON ---
     st.markdown("### 💾 Export")
     rapport = {
         "match": {"league": ligue, "date": str(st.session_state.match_date),
@@ -891,15 +958,14 @@ def page_7():
         "regime": regime, "qualite": qualite, "variables": variables,
         "resultats": resultats, "meilleur": meilleur,
         "scores_exacts": scores_exacts, "combines": combines,
-        "clv_actif": clv_actif,
-        "warnings_cotes": warnings_cotes,
+        "clv_actif": clv_actif, "warnings_cotes": warnings_cotes,
     }
     st.download_button(
         "⬇️ Télécharger le rapport JSON",
         data=json.dumps(rapport, indent=2, ensure_ascii=False, default=str),
         file_name=f"oracle_edge_{home}_vs_{away}.json",
         mime="application/json",
-        )
+    )
 
 
 def page_8():
@@ -941,10 +1007,9 @@ def page_8():
                     st.caption(f"ROB {p['rob']:.2f}")
                 st.markdown("---")
 
-    # ============ MÉTRIQUES DE QUALITÉ ============
+    # Métriques
     st.markdown("### 🎯 Métriques de qualité")
     st.caption("Mesurent la fiabilité réelle du bot, pas juste le taux de réussite.")
-
     m = calib.get_metriques()
     if m["n"] == 0:
         st.caption("Aucun pari résolu. Les métriques apparaîtront après tes premiers résultats.")
@@ -953,20 +1018,19 @@ def page_8():
         c1.metric("Paris résolus", m["n"])
         c2.metric("Brier Score",
                   f"{m['brier']:.3f}" if m["brier"] is not None else "—",
-                  help="0 = parfait · 0.25 = neutre · >0.30 = mauvais")
+                  help="0 = parfait · 0.25 = neutre")
         c3.metric("Log Loss",
                   f"{m['log_loss']:.3f}" if m["log_loss"] is not None else "—",
-                  help="Pénalise les erreurs confiantes · <0.65 = bon")
+                  help="<0.65 = bon")
         c4.metric("ECE",
                   f"{m['ece']:.3f}" if m["ece"] is not None else "—",
-                  help="Écart calibration · <0.05 = bon")
+                  help="<0.05 = bon")
 
         c1, c2, c3 = st.columns(3)
         c1.markdown(f"**Brier :** {m['brier_txt']}")
         c2.markdown(f"**Log Loss :** {m['log_loss_txt']}")
         c3.markdown(f"**ECE :** {m['ece_txt']}")
 
-        # Bins de calibration (affichage)
         with st.expander("📊 Voir la calibration détaillée (bins)"):
             bins = calib.get_hist_bins()
             if bins:
@@ -983,10 +1047,9 @@ def page_8():
                 st.caption("Idéalement, la P moyenne et la Fréq observée "
                            "doivent être proches (écart < 5%).")
 
-    # ============ STATS GLOBALES ============
+    # Stats globales
     st.markdown("### 📊 Statistiques globales")
     stats = calib.get_stats()
-
     if stats.get("_global", {}).get("total", 0) > 0:
         g = stats["_global"]
         c1, c2, c3 = st.columns(3)
@@ -1020,7 +1083,7 @@ def page_8():
             st.dataframe(pd.DataFrame(hist_rows),
                          use_container_width=True, hide_index=True)
 
-    # ============ META-BRAIN ============
+    # Meta-Brain
     st.markdown("### 🧠 Meta-Brain — Performance par contexte")
     contextes = metabrain.stats_contexte()
     if not contextes:
@@ -1040,7 +1103,7 @@ def page_8():
         st.dataframe(pd.DataFrame(ctx_rows),
                      use_container_width=True, hide_index=True)
 
-    # ============ GRADIENT-X ============
+    # Gradient
     st.markdown("### ⚙️ GRADIENT-X — Optimisation des poids")
     stats_g = gradient.stats_gradient()
     if stats_g:
@@ -1064,7 +1127,7 @@ def page_8():
                 st.dataframe(pd.DataFrame(e_rows),
                              use_container_width=True, hide_index=True)
 
-    # ============ ELO ============
+    # ELO
     st.markdown("### 🏅 ELO — Classement des équipes")
     stats_e = elo.stats_elo()
     if not stats_e:
@@ -1076,7 +1139,7 @@ def page_8():
         st.dataframe(pd.DataFrame(e_rows),
                      use_container_width=True, hide_index=True)
 
-    # ============ ZONE DANGEREUSE ============
+    # Zone dangereuse
     with st.expander("⚠️ Zone dangereuse"):
         st.caption("Efface les données d'apprentissage.")
         c1, c2, c3 = st.columns(3)
