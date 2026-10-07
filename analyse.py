@@ -1,6 +1,7 @@
 """
-analyse.py — Couche d'intégration (v2.5).
-Passe la ligue à analyse_mger → propagée jusqu'aux poids.
+analyse.py — Couche d'intégration (v2.6).
+18 marchés + scores + combinés + CLV + Meta-Brain + ELO + Shin
++ Cohérence + contrôle cotes + Convergence Engine.
 """
 
 import math
@@ -16,6 +17,7 @@ from score_matrix import (
 from combines import generer_combines
 from coherence import appliquer_coherence
 import odds_check
+import convergence
 
 
 MARCHES_V1 = [
@@ -155,6 +157,10 @@ def analyser_match(home_form, away_form, h2h,
     cotes_ouv = cotes_ouverture_map or {}
     warnings_cotes = odds_check.verifier_toutes(cotes_map)
 
+    # Qualité globale normalisée (0-1) pour la confiance
+    q_globale = (volume + (1 - fraicheur) + completude) / 3.0
+
+    # ========== 1. Analyse brute par marché ==========
     resultats = []
     for market in MARCHES_V1:
         cote = cotes_map.get(market)
@@ -173,29 +179,57 @@ def analyser_match(home_form, away_form, h2h,
                 cotes_groupe=groupe,
             )
             oracle_res["cote"] = cote
+
+            # ========== 2. Convergence Engine ==========
+            try:
+                conv = convergence.analyser_convergence(
+                    market=market,
+                    variables=variables,
+                    ligue=ligue,
+                    home_team=home_team,
+                    away_team=away_team,
+                    cotes_groupe=groupe,
+                    rob=oracle_res.get("rob"),
+                    quality_normalized=q_globale,
+                )
+                oracle_res["convergence"] = conv
+                oracle_res["P_fusion"] = conv["P_fusion"]
+                oracle_res["P_finale"] = conv["P_finale"]
+                oracle_res["confiance"] = conv["confiance"]
+                oracle_res["failure"] = conv["failure"]
+                oracle_res["modeles_conv"] = conv["modeles"]
+                oracle_res["n_modeles"] = conv["n_modeles"]
+            except Exception as e:
+                oracle_res["convergence_erreur"] = str(e)
+
             resultats.append(oracle_res)
         except Exception as e:
             resultats.append({
                 "market": market, "erreur": str(e), "accepte": False,
             })
 
+    # ========== 3. Cohérence ==========
     try:
         resultats = appliquer_coherence(resultats)
     except Exception as e:
         print(f"Erreur coherence : {e}")
 
+    # ========== 4. Recalcul EV / Master ==========
     resultats = [recalculer_apres_coherence(r) for r in resultats]
 
+    # ========== 5. Meilleur pari ==========
     valides = [r for r in resultats if r.get("accepte")]
     meilleur = max(valides, key=lambda x: x["master_score"]) if valides else None
 
+    # ========== 6. Scores exacts ==========
     scores_exacts = None
     if cotes_cs:
         try:
-            scores_exacts = analyser_scores_exactes_import(variables, cotes_cs)
+            scores_exacts = analyser_scores_exacts(variables, cotes_cs)
         except Exception as e:
             scores_exacts = {"erreur": str(e)}
 
+    # ========== 7. Combinés ==========
     combines = None
     try:
         combines = generer_combines(resultats, top_n=10, ev_min=0.0)
@@ -210,8 +244,4 @@ def analyser_match(home_form, away_form, h2h,
         "resultats": resultats, "meilleur": meilleur,
         "scores_exacts": scores_exacts, "combines": combines,
         "warnings_cotes": warnings_cotes,
-    }
-
-
-def analyser_scores_exactes_import(variables, cotes_cs):
-    return analyser_scores_exacts(variables, cotes_cs)
+}
