@@ -1,7 +1,6 @@
 """
-analyse.py — Couche d'intégration.
-18 marchés + scores + combinés + CLV + Meta-Brain + ELO + Shin + Cohérence
-+ contrôle de plausibilité des cotes.
+analyse.py — Couche d'intégration (v2.5).
+Passe la ligue à analyse_mger → propagée jusqu'aux poids.
 """
 
 import math
@@ -12,10 +11,7 @@ from poids import detecter_regime
 from mger import analyse_mger
 from oracle import analyse_oracle, facteur_value, classer_score, no_bet_gate
 from score_matrix import (
-    calculer_lambdas,
-    construire_matrice,
-    proba_score,
-    top_scores,
+    calculer_lambdas, construire_matrice, proba_score, top_scores,
 )
 from combines import generer_combines
 from coherence import appliquer_coherence
@@ -102,12 +98,10 @@ def recalculer_apres_coherence(r):
     accepte, raisons = no_bet_gate(
         p_cal, rob, chaos, q, ev, cote,
         r.get("score_contradictions", 0.0),
-        r.get("edge_stability"),
-        piege, meta_score,
+        r.get("edge_stability"), piege, meta_score,
     )
     r["accepte"] = accepte
     r["raisons_rejet"] = raisons
-
     return r
 
 
@@ -122,13 +116,11 @@ def analyser_scores_exacts(variables, cotes_cs):
         p = proba_score(mat, score)
         if p is None:
             continue
-        proba_implicite = 1 / cote
-        edge = p - proba_implicite
-        ev = p * cote - 1
+        pi = 1 / cote
         resultats.append({
             "score": score, "proba": p, "cote": cote,
-            "proba_implicite": proba_implicite,
-            "edge": edge, "ev": ev,
+            "proba_implicite": pi,
+            "edge": p - pi, "ev": p * cote - 1,
         })
 
     return {
@@ -143,14 +135,10 @@ def analyser_match(home_form, away_form, h2h,
                    cotes_cs=None, cotes_ouverture_map=None,
                    ligue="?", home_team=None, away_team=None):
     donnees = construire_donnees(
-        form_data=home_form,
-        form_adv_data=away_form,
-        absences=absences,
-        motivation=motivation,
-        cote_home=cote_home,
-        h2h_data=h2h,
-        home_team=home_team,
-        away_team=away_team,
+        form_data=home_form, form_adv_data=away_form,
+        absences=absences, motivation=motivation,
+        cote_home=cote_home, h2h_data=h2h,
+        home_team=home_team, away_team=away_team,
     )
 
     volume = donnees.pop("_volume", 1.0)
@@ -165,18 +153,15 @@ def analyser_match(home_form, away_form, h2h,
         regime = "?"
 
     cotes_ouv = cotes_ouverture_map or {}
-
-    # === Contrôle des cotes ===
     warnings_cotes = odds_check.verifier_toutes(cotes_map)
 
-    # === 1. Analyse brute par marché ===
     resultats = []
     for market in MARCHES_V1:
         cote = cotes_map.get(market)
         if not cote or cote <= 1.01:
             continue
         try:
-            mger_res = analyse_mger(market, variables, cote=cote)
+            mger_res = analyse_mger(market, variables, cote=cote, ligue=ligue)
             groupe = construire_groupes_cotes(market, cotes_map)
             oracle_res = analyse_oracle(
                 variables, mger_res, cote,
@@ -184,8 +169,7 @@ def analyser_match(home_form, away_form, h2h,
                 volume_donnees=volume,
                 fraicheur_jours=fraicheur,
                 completude=completude,
-                regime=regime,
-                ligue=ligue,
+                regime=regime, ligue=ligue,
                 cotes_groupe=groupe,
             )
             oracle_res["cote"] = cote
@@ -195,28 +179,23 @@ def analyser_match(home_form, away_form, h2h,
                 "market": market, "erreur": str(e), "accepte": False,
             })
 
-    # === 2. Cohérence ===
     try:
         resultats = appliquer_coherence(resultats)
     except Exception as e:
         print(f"Erreur coherence : {e}")
 
-    # === 3. Recalcul EV / Master après cohérence ===
     resultats = [recalculer_apres_coherence(r) for r in resultats]
 
-    # === 4. Meilleur pari ===
     valides = [r for r in resultats if r.get("accepte")]
     meilleur = max(valides, key=lambda x: x["master_score"]) if valides else None
 
-    # === 5. Scores exacts ===
     scores_exacts = None
     if cotes_cs:
         try:
-            scores_exacts = analyser_scores_exacts(variables, cotes_cs)
+            scores_exacts = analyser_scores_exactes_import(variables, cotes_cs)
         except Exception as e:
             scores_exacts = {"erreur": str(e)}
 
-    # === 6. Combinés ===
     combines = None
     try:
         combines = generer_combines(resultats, top_n=10, ev_min=0.0)
@@ -225,16 +204,14 @@ def analyser_match(home_form, away_form, h2h,
 
     return {
         "variables": variables,
-        "qualite": {
-            "volume": volume,
-            "fraicheur": fraicheur,
-            "completude": completude,
-        },
-        "regime": regime,
-        "ligue": ligue,
-        "resultats": resultats,
-        "meilleur": meilleur,
-        "scores_exacts": scores_exacts,
-        "combines": combines,
+        "qualite": {"volume": volume, "fraicheur": fraicheur,
+                    "completude": completude},
+        "regime": regime, "ligue": ligue,
+        "resultats": resultats, "meilleur": meilleur,
+        "scores_exacts": scores_exacts, "combines": combines,
         "warnings_cotes": warnings_cotes,
-}
+    }
+
+
+def analyser_scores_exactes_import(variables, cotes_cs):
+    return analyser_scores_exacts(variables, cotes_cs)
