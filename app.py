@@ -900,7 +900,8 @@ def page_7():
         file_name=f"oracle_edge_{home}_vs_{away}.json",
         mime="application/json",
         )
-    
+
+
 def page_8():
     st.markdown('<div class="card"><p class="card-title">Suivi des paris</p>'
                 '<p class="card-sub">Marque chaque pari comme Gagné ou Perdu. '
@@ -940,6 +941,49 @@ def page_8():
                     st.caption(f"ROB {p['rob']:.2f}")
                 st.markdown("---")
 
+    # ============ MÉTRIQUES DE QUALITÉ ============
+    st.markdown("### 🎯 Métriques de qualité")
+    st.caption("Mesurent la fiabilité réelle du bot, pas juste le taux de réussite.")
+
+    m = calib.get_metriques()
+    if m["n"] == 0:
+        st.caption("Aucun pari résolu. Les métriques apparaîtront après tes premiers résultats.")
+    else:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Paris résolus", m["n"])
+        c2.metric("Brier Score",
+                  f"{m['brier']:.3f}" if m["brier"] is not None else "—",
+                  help="0 = parfait · 0.25 = neutre · >0.30 = mauvais")
+        c3.metric("Log Loss",
+                  f"{m['log_loss']:.3f}" if m["log_loss"] is not None else "—",
+                  help="Pénalise les erreurs confiantes · <0.65 = bon")
+        c4.metric("ECE",
+                  f"{m['ece']:.3f}" if m["ece"] is not None else "—",
+                  help="Écart calibration · <0.05 = bon")
+
+        c1, c2, c3 = st.columns(3)
+        c1.markdown(f"**Brier :** {m['brier_txt']}")
+        c2.markdown(f"**Log Loss :** {m['log_loss_txt']}")
+        c3.markdown(f"**ECE :** {m['ece_txt']}")
+
+        # Bins de calibration (affichage)
+        with st.expander("📊 Voir la calibration détaillée (bins)"):
+            bins = calib.get_hist_bins()
+            if bins:
+                import pandas as pd
+                bin_rows = [{
+                    "Bin": b["bin"],
+                    "P moyenne": f"{b['proba_moy']:.1%}",
+                    "Fréq observée": f"{b['freq_obs']:.1%}",
+                    "Écart": f"{b['ecart']:+.1%}",
+                    "n": b["n"],
+                } for b in bins]
+                st.dataframe(pd.DataFrame(bin_rows),
+                             use_container_width=True, hide_index=True)
+                st.caption("Idéalement, la P moyenne et la Fréq observée "
+                           "doivent être proches (écart < 5%).")
+
+    # ============ STATS GLOBALES ============
     st.markdown("### 📊 Statistiques globales")
     stats = calib.get_stats()
 
@@ -952,11 +996,11 @@ def page_8():
 
         import pandas as pd
         rows = []
-        for m, s in stats.items():
-            if m == "_global":
+        for m_, s in stats.items():
+            if m_ == "_global":
                 continue
             rows.append({
-                "Marché": m, "Total": s["total"], "Gagnés": s["gagnes"],
+                "Marché": m_, "Total": s["total"], "Gagnés": s["gagnes"],
                 "Taux": f"{s['taux_reussite']:.1%}",
                 "Cote moy.": f"{s['cote_moy']:.2f}",
             })
@@ -976,6 +1020,7 @@ def page_8():
             st.dataframe(pd.DataFrame(hist_rows),
                          use_container_width=True, hide_index=True)
 
+    # ============ META-BRAIN ============
     st.markdown("### 🧠 Meta-Brain — Performance par contexte")
     contextes = metabrain.stats_contexte()
     if not contextes:
@@ -995,6 +1040,7 @@ def page_8():
         st.dataframe(pd.DataFrame(ctx_rows),
                      use_container_width=True, hide_index=True)
 
+    # ============ GRADIENT-X ============
     st.markdown("### ⚙️ GRADIENT-X — Optimisation des poids")
     stats_g = gradient.stats_gradient()
     if stats_g:
@@ -1018,6 +1064,7 @@ def page_8():
                 st.dataframe(pd.DataFrame(e_rows),
                              use_container_width=True, hide_index=True)
 
+    # ============ ELO ============
     st.markdown("### 🏅 ELO — Classement des équipes")
     stats_e = elo.stats_elo()
     if not stats_e:
@@ -1029,6 +1076,7 @@ def page_8():
         st.dataframe(pd.DataFrame(e_rows),
                      use_container_width=True, hide_index=True)
 
+    # ============ ZONE DANGEREUSE ============
     with st.expander("⚠️ Zone dangereuse"):
         st.caption("Efface les données d'apprentissage.")
         c1, c2, c3 = st.columns(3)
