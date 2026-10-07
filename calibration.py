@@ -1,9 +1,7 @@
 """
 calibration.py — Moteur d'apprentissage.
-Gère 3 niveaux d'apprentissage :
-1. Calibration (bins de probabilités)
-2. Meta-Brain (performance par contexte)
-3. Gradient (optimisation des poids)
+Gère 3 niveaux : bins, Meta-Brain, Gradient.
+Expose les métriques de qualité (Brier, Log Loss, ECE).
 """
 
 import json
@@ -11,12 +9,11 @@ from pathlib import Path
 
 import metabrain
 import gradient
+import metriques
 
 
 CALIBRATION_FILE = Path("calibration_data.json")
 
-
-# ---------- Persistance ----------
 
 def charger():
     if not CALIBRATION_FILE.exists():
@@ -35,8 +32,6 @@ def sauver(data):
     except IOError as e:
         print(f"Erreur sauvegarde calibration : {e}")
 
-
-# ---------- Bins ----------
 
 def _bin_key(proba, n_bins=20):
     idx = int(proba * n_bins)
@@ -58,14 +53,8 @@ def calibrer(proba_brute, market, data=None):
     return (1 - poids) * proba_brute + poids * freq_observee
 
 
-# ---------- Enregistrement ----------
-
 def enregistrer_pari(market, p_calibree, cote, score, rob, verdict,
                      regime="?", ligue="?", variables=None):
-    """
-    Enregistre un pari recommandé.
-    - variables : dict des 14 variables (pour GRADIENT-X)
-    """
     data = charger()
     pari = {
         "id": len(data["historique"]) + 1,
@@ -86,14 +75,6 @@ def enregistrer_pari(market, p_calibree, cote, score, rob, verdict,
 
 
 def enregistrer_resultat(pari_id, gagne):
-    """
-    Met à jour un pari avec son résultat réel.
-    Alimente 3 mécanismes :
-    - bins de calibration
-    - stats globales
-    - Meta-Brain (par contexte)
-    - Gradient (mise à jour des poids)
-    """
     data = charger()
     pari = None
     for p in data["historique"]:
@@ -108,7 +89,7 @@ def enregistrer_resultat(pari_id, gagne):
     market = pari["market"]
     p_calibree = pari["p_calibree"]
 
-    # --- 1. Mise à jour du bin ---
+    # 1. Bins
     if market not in data["bins"]:
         data["bins"][market] = {}
     bin_key = _bin_key(p_calibree)
@@ -118,7 +99,7 @@ def enregistrer_resultat(pari_id, gagne):
     if gagne:
         data["bins"][market][bin_key]["reussites"] += 1
 
-    # --- 2. Stats globales ---
+    # 2. Stats
     if market not in data["stats"]:
         data["stats"][market] = {"total": 0, "gagnes": 0, "cote_moy": 0.0}
     s = data["stats"][market]
@@ -129,7 +110,7 @@ def enregistrer_resultat(pari_id, gagne):
 
     sauver(data)
 
-    # --- 3. Meta-Brain ---
+    # 3. Meta-Brain
     try:
         metabrain.enregistrer_contexte(
             market=market,
@@ -140,13 +121,12 @@ def enregistrer_resultat(pari_id, gagne):
     except Exception as e:
         print(f"Erreur metabrain : {e}")
 
-    # --- 4. Gradient (mise à jour des poids) ---
+    # 4. Gradient
     variables = pari.get("variables") or {}
     if variables:
         try:
             gradient.mettre_a_jour(
-                market=market,
-                variables=variables,
+                market=market, variables=variables,
                 proba_predite=p_calibree,
                 resultat_reel=1 if gagne else 0,
             )
@@ -155,8 +135,6 @@ def enregistrer_resultat(pari_id, gagne):
 
     return True
 
-
-# ---------- Statistiques ----------
 
 def get_stats():
     data = charger()
@@ -167,20 +145,29 @@ def get_stats():
     for market, s in data["stats"].items():
         taux = s["gagnes"] / s["total"] if s["total"] > 0 else 0.0
         stats[market] = {
-            "total": s["total"],
-            "gagnes": s["gagnes"],
-            "taux_reussite": taux,
-            "cote_moy": s["cote_moy"],
+            "total": s["total"], "gagnes": s["gagnes"],
+            "taux_reussite": taux, "cote_moy": s["cote_moy"],
         }
         total_p += s["total"]
         total_gagnes += s["gagnes"]
 
     stats["_global"] = {
-        "total": total_p,
-        "gagnes": total_gagnes,
+        "total": total_p, "gagnes": total_gagnes,
         "taux_reussite": total_gagnes / total_p if total_p > 0 else 0.0,
     }
     return stats
+
+
+def get_metriques():
+    """Retourne les métriques Brier, Log Loss, ECE."""
+    data = charger()
+    return metriques.calculer_toutes(data["historique"])
+
+
+def get_hist_bins():
+    """Retourne les bins de calibration pour affichage."""
+    data = charger()
+    return metriques.hist_bins(data["historique"])
 
 
 def paris_en_attente():
